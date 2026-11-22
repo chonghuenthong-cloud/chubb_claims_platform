@@ -186,3 +186,36 @@ Tests: 52 backend, 2 frontend, all passing.
 - V9, claimants can't see decisions (approved amount, rejection reason): ✅ **left for the claimant tracking milestone**, which should come next, since the brief requires claimants to "receive decisions".
 
 **My review:** _(add here)_
+
+---
+
+## Entry 8: Claimant tracking
+**Why:** While testing, I rejected Ben's claim as Priya, then switched to Ben, and he couldn't see the reason. The AI confirmed this was the V9 gap: the reason was saved and the API already returned it, but no claimant screen showed it.
+
+⚠️ **The AI also challenged my test:** my reason ("Please provide more evidences to prove") reads like a request for information, and Rejected is final (B1), so Ben can't send that evidence now. This shows why Request info and Reject are separate actions, and it's a likely panel question ("what if the claimant disagrees?" → no appeal flow, a known simplification).
+
+**My decisions:**
+| Question | Chose |
+|----------|-------|
+| Page | ✅ One full claimant claim page (replaces the minimal answer page) |
+| Timeline | ⚠️ Statuses + dates **with staff names** (the AI recommended hiding names as "Claims team") |
+| Internal data | ✅ Separate claimant response; the reserve and officer id never leave the server |
+| Updates | ✅ Seen when the app is opened (live push comes with Kafka) |
+| Officer name on page | ✅ Yes |
+| Notes in timeline | ✅ Yes |
+| Coverage limit | ❌ **Show it** (overrode the AI's recommendation to hide it) |
+| List API | ✅ Trimmed too |
+| Plan proposals C2–C3, F3–F5 | ✅ Approved: new `GET /api/me/claims/{id}` (staff-only `GET /api/claims/{id}`); submit and answer also return the claimant format; decision wording; oldest-first timeline; restore the Reject label |
+| After answering | ✅ Stay on the claim page (the old page went back to My claims) |
+
+**AI built:**
+- Backend: `ClaimantClaimSummary` and `ClaimantClaimDetail`, the claimant claim endpoint, claimant formats for submit, list and answer, and the Location link moved to `/api/me/claims/{id}`. 82 tests, including checks that no claimant response contains `reserveAmount` or `assignedOfficerId`, and that each role is blocked from the other's URL.
+- Frontend: a full claimant claim page (decision, details, Q&A with an answer box, timeline); every My claims row opens it; the Reject label is back to "Reason (shown to the claimant)".
+
+**Verified in the browser:** Ben opens CLM-000002 and sees "Rejected" with my reason, plus a timeline with names; his browser received no reserve or officer id (checked the raw responses). Alice answers the seeded question on CLM-000003 and stays on the page, now Under review. CLM-000006 shows "Settled: SGD 3,800.00 paid". Staff still get the reserve from the staff URL.
+
+**Issue along the way:** the old backend was still on port 8081 again → I stopped it.
+
+**Review:** the AI listed every change (features, API before/after, files, tests). Beyond-plan items: ✅ X1 keep `CurrentUserService.require(userId)` private (no longer used outside the class); ✅ X2 keep the shared timeline/Q&A helpers, so the staff and claimant views can't drift apart.
+
+**My review:** _(add here)_
