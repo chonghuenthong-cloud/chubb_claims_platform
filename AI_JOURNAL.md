@@ -219,3 +219,32 @@ Tests: 52 backend, 2 frontend, all passing.
 **Review:** the AI listed every change (features, API before/after, files, tests). Beyond-plan items: ✅ X1 keep `CurrentUserService.require(userId)` private (no longer used outside the class); ✅ X2 keep the shared timeline/Q&A helpers, so the staff and claimant views can't drift apart.
 
 **My review:** _(add here)_
+
+---
+
+## Entry 9: Team workload and performance dashboard
+**Asked:** The brief says staff should "see their team's workload and performance", and asks what the system needs to know about outstanding liability exposure. ❌ I chose this **before the README**, which the AI had recommended doing first.
+
+**My decisions:**
+| Question | Chose |
+|----------|-------|
+| Measures | ✅ All four: workload per officer, unassigned queue, liability exposure, performance per officer |
+| Data source | ✅ Live SQL queries (Kafka read model later) |
+| Period | ✅ All time |
+| Currency | ✅ Separate total per currency (no FX) |
+| Exposure breakdown | ✅ Total + by market + by product |
+| Timings | ⚠️ First chose submission → pick-up and approval → settlement. The AI pointed out that pick-up → decision was left out (a likely panel question), so I **added it** |
+| Placement | ✅ Tab next to Work queue |
+| Display | ✅ Number cards + tables (no chart library) |
+| Plan proposals D1, D3, D5–D7, F1, F5 | ✅ Approved: one endpoint, idle officers as zeros, counts from history, timing definitions, hours/days display, staff tabs, "–" for no data |
+| Duplicate heading | ✅ Removed the "Work queue" heading, since the tab already names the page |
+
+**AI built:**
+- Backend: `GET /api/dashboard` in a new `dashboard` package; 4 SQL aggregate sections (JdbcTemplate). 88 tests: `DashboardIntegrationTest` checks **exact numbers hand-calculated from the seed data** (e.g. SGD exposure 29,200, Priya's pick-up → decision 78.6 h, Daniel's 35 min), checks that settling updates exposure and counts, and checks that claimants get 403. All matched on the first run.
+- Frontend: staff tab bar (Work queue / Team dashboard), a dashboard page with an Unassigned card, an exposure card per currency (market and product tables), and Workload and Performance tables; a `duration` pipe for hours/days.
+
+**Caveat documented:** pick-up → decision includes time spent waiting for the claimant, so it measures total assessment time, not only officer effort.
+
+**Verified in the browser:** the dashboard showed the local (test-modified) data, and every figure was cross-checked against the actual claim states, including recalculating the averages by hand. The tabs switch, the work queue has no duplicate heading, and there are no console errors.
+
+**My review:** _(add here)_
