@@ -1,6 +1,10 @@
 package com.chubb.claims.web;
 
+import com.chubb.claims.claim.AmountAboveCoverageLimitException;
+import com.chubb.claims.claim.InvalidStatusTransitionException;
+import com.chubb.claims.claim.NotAssignedOfficerException;
 import org.springframework.http.HttpStatus;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -39,6 +43,31 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ProblemDetail handleUnreadableBody(HttpMessageNotReadableException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Request body is missing or malformed");
+    }
+
+    /** Reserve or approved amount above the policy's coverage limit. */
+    @ExceptionHandler(AmountAboveCoverageLimitException.class)
+    public ProblemDetail handleAboveLimit(AmountAboveCoverageLimitException ex) {
+        return validationProblem(List.of(new FieldError("amount", ex.getMessage())));
+    }
+
+    /** The action doesn't fit the claim's current status (e.g. approving a claim that isn't in review). */
+    @ExceptionHandler(InvalidStatusTransitionException.class)
+    public ProblemDetail handleWrongStatus(InvalidStatusTransitionException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /** A staff member acted on a claim that isn't assigned to them. */
+    @ExceptionHandler(NotAssignedOfficerException.class)
+    public ProblemDetail handleNotAssigned(NotAssignedOfficerException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    /** Someone else changed the same claim at the same moment (version check failed). */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ProblemDetail handleConcurrentChange(ObjectOptimisticLockingFailureException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "This claim was just changed by someone else. Reload and try again.");
     }
 
     @ExceptionHandler(ApiException.class)

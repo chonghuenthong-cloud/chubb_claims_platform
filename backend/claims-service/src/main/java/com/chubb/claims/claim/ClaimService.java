@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -70,11 +71,87 @@ public class ClaimService {
                 .toList();
     }
 
-    /** All claims, newest first, for staff. */
+    /** Staff work queue filters. */
+    public enum QueueFilter { ALL, UNASSIGNED, MINE }
+
+    /** Claims for the staff work queue, newest first. */
     @Transactional(readOnly = true)
-    public List<ClaimSummaryResponse> allClaims() {
-        return claims.findAllByOrderBySubmittedAtDesc().stream()
-                .map(ClaimSummaryResponse::from)
-                .toList();
+    public List<ClaimSummaryResponse> queue(AppUser staff, QueueFilter filter) {
+        List<Claim> result = switch (filter) {
+            case ALL -> claims.findAllByOrderBySubmittedAtDesc();
+            case UNASSIGNED -> claims.findByAssignedOfficerIsNullOrderBySubmittedAtDesc();
+            case MINE -> claims.findByAssignedOfficerIdOrderBySubmittedAtDesc(staff.getId());
+        };
+        return result.stream().map(ClaimSummaryResponse::from).toList();
+    }
+
+    // --- Actions. Each loads the claim, applies the domain rule, saves, and returns the updated claim. ---
+    // Flushing inside the transaction makes the version check run here: if another officer changed the claim
+    // at the same moment, this fails with a conflict instead of silently overwriting their change.
+
+    @Transactional
+    public ClaimDetailResponse pickUp(AppUser officer, UUID claimId) {
+        Claim claim = load(claimId);
+        claim.pickUp(officer);
+        return save(claim);
+    }
+
+    @Transactional
+    public ClaimDetailResponse reviseReserve(AppUser officer, UUID claimId, BigDecimal amount) {
+        Claim claim = load(claimId);
+        claim.reviseReserve(officer, amount);
+        return save(claim);
+    }
+
+    @Transactional
+    public ClaimDetailResponse requestInformation(AppUser officer, UUID claimId, String question) {
+        Claim claim = load(claimId);
+        claim.requestInformation(officer, question.trim());
+        return save(claim);
+    }
+
+    /** Claimant answers the open question. Someone else's claim gets 404, as with viewing. */
+    @Transactional
+    public ClaimDetailResponse answerInformationRequest(AppUser claimant, UUID claimId, String response) {
+        Claim claim = claims.findDetailedById(claimId)
+                .filter(c -> c.getClaimant().getId().equals(claimant.getId()))
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Claim not found"));
+        claim.answerInformationRequest(claimant, response.trim());
+        return save(claim);
+    }
+
+    @Transactional
+    public ClaimDetailResponse approve(AppUser officer, UUID claimId, BigDecimal amount) {
+        Claim claim = load(claimId);
+        claim.approve(officer, amount);
+        return save(claim);
+    }
+
+    @Transactional
+    public ClaimDetailResponse reject(AppUser officer, UUID claimId, String reason) {
+        Claim claim = load(claimId);
+        claim.reject(officer, reason.trim());
+        return save(claim);
+    }
+
+    @Transactional
+    public ClaimDetailResponse settle(AppUser officer, UUID claimId) {
+        Claim claim = load(claimId);
+        claim.settle(officer);
+        return save(claim);
+    }
+
+    private Claim load(UUID claimId) {
+        return claims.findDetailedById(claimId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Claim not found"));
+    }
+
+    /**
+     * The claim is already managed in this transaction, so flushing writes the changes (and cascades new history
+     * and information requests). Calling save() here would "merge" instead, which copies new child rows wrongly.
+     */
+    private ClaimDetailResponse save(Claim claim) {
+        claims.flush();
+        return ClaimDetailResponse.from(claim);
     }
 }

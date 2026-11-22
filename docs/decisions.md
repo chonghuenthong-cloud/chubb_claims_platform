@@ -55,8 +55,25 @@ Paths are under `backend/claims-service/src/main/java/com/chubb/claims/`.
 | Rule | Code | Test | Decided |
 |------|------|------|---------|
 | Initial reserve = estimated loss, capped at the policy's coverage limit | `claim/Claim.submit` | `ClaimTest`, `ClaimApiIntegrationTest` | Eunice (B2) |
+| Officer can revise the reserve to any amount from 0 up to the coverage limit, only while the claim is Under review or Awaiting info | `claim/Claim.reviseReserve` | `ClaimTest`, `ClaimActionsIntegrationTest` | Eunice (S8) |
+| Approved amount must be above 0 and at most the coverage limit (may differ from estimate or reserve) | `claim/Claim.approve` | `ClaimTest`, `ClaimActionsIntegrationTest` | Eunice |
+| Reserve always means "what we still expect to pay": approve → reserve = approved amount; reject → 0; settle → 0 | `claim/Claim.approve`, `reject`, `settle` | `ClaimTest`, `ClaimActionsIntegrationTest` | Eunice (S10) |
+| Settling pays exactly the approved amount (no separate paid amount) | `claim/Claim.settle` | `ClaimActionsIntegrationTest` | Eunice |
 | A claim's amounts are in its policy's currency; no FX conversion | `claim/ClaimSummaryResponse.from` | (none yet) | Eunice (B6) |
-| Liability exposure = reserve on open claims; approved amount once approved | (planned, not built) | | Proposed (D6) |
+| Liability exposure = sum of reserves (S10 makes this a simple sum over all claims) | (planned, not built) | | Proposed (D6) |
+
+### Staff actions
+| Rule | Code | Test | Decided |
+|------|------|------|---------|
+| Any staff member can pick up an unassigned Submitted claim; it becomes theirs and moves to Under review. Self pick-up only; no reassignment | `claim/Claim.pickUp` | `ClaimTest`, `ClaimActionsIntegrationTest` | Eunice |
+| Picking up an already-assigned claim → 409 "already picked up by …"; two simultaneous pick-ups → the second fails on the version check (409) | `claim/Claim.pickUp`, `@Version` on `Claim` | `ClaimActionsIntegrationTest` | Eunice (S12) |
+| Once assigned, only the assigned officer can revise the reserve, request info, approve, reject or settle | `claim/Claim.requireAssignedOfficer` | `ClaimTest`, `ClaimActionsIntegrationTest` | Eunice |
+| Check order: ownership (403) → status (409) → amount within limit (400) | `claim/Claim` action methods | `ClaimTest.ownershipIsCheckedBeforeStatus`, `ClaimActionsIntegrationTest.ownershipIsCheckedBeforeStatus` | Eunice |
+| Rejection reason, info question and claimant answer: 10 to 2000 characters | `claim/ClaimActionRequests` | `ClaimActionsIntegrationTest` | Eunice |
+| The info question and the rejection reason are copied into the status history note, so the timeline reads on its own | `claim/Claim.requestInformation`, `reject` | `ClaimTest`, `ClaimActionsIntegrationTest` | Eunice |
+| The claimant answers the latest open question; the claim returns to Under review. No open question → 409; someone else's claim → 404 | `claim/Claim.answerInformationRequest`, `claim/ClaimService.answerInformationRequest` | `ClaimTest`, `ClaimActionsIntegrationTest` | Eunice |
+| Approve, reject and settle can't be undone (no way back in the lifecycle); the UI asks for confirmation | `staff/claim-detail/action-dialog.ts` (frontend) | browser check | Eunice (U4) |
+| Staff queue filters: All / Unassigned / Assigned to me | `claim/ClaimService.queue` | `ClaimActionsIntegrationTest.queueFiltersByAssignment` | Eunice (S14) |
 
 ### Claim lifecycle
 | Rule | Code | Test | Decided |
@@ -78,7 +95,12 @@ Paths are under `backend/claims-service/src/main/java/com/chubb/claims/`.
 - **One coverage limit per policy.** Real motor policies have separate limits (own damage, third-party property, and so on).
 
 ### Known technical gaps
-- **Lists are not paginated.** `GET /api/claims` and `GET /api/me/claims` return every matching claim in one response. Fine for demo data; at production volume the staff queue needs server-side paging. Planned together with work-queue filters ("unassigned", "assigned to me") in the staff milestone, since the two are used together. (Eunice, R10)
+- **Lists are not paginated.** `GET /api/claims` and `GET /api/me/claims` return every matching claim in one response. Fine for demo data; at production volume the staff queue needs server-side paging. The queue filters were built in the staff milestone; paging was deferred again because the demo has only a few claims. (Eunice, R10, S14)
+- **Reserve changes are not audited.** The history table records status changes only, so a revised reserve keeps no record of who changed it, from what, or when. A reserve-change table is the fix. (Eunice, S9)
+- **No reassignment.** If the assigned officer is away, nobody else can act on their claims. (Eunice: self pick-up only)
+- **Actions don't publish Kafka events yet.** Planned for the Kafka milestone. (Eunice, S15)
+- **Claimants can't see decisions yet.** The detail endpoint already returns the approved amount, rejection reason and history to the claimant, but no claimant screen shows them. This is a gap against the brief ("receive decisions"); planned as the claimant tracking milestone. (Eunice, V9)
+- **Stale screens aren't detected.** The UI doesn't send the claim version it loaded, so an officer acting on an old screen is only stopped by the status checks, not by a version mismatch. (Eunice, S12)
 
 ### Demo data (not rules)
 Policy numbers, coverage limits, currencies, dates and users in `db/seed/V100__seed_demo_data.sql` were **invented by the AI for the demo**. They are not real Chubb figures. Example: Alice's `SG-MOT-0001` is a Singapore motor policy in SGD with a 50,000 limit.

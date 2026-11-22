@@ -84,6 +84,11 @@ public class Claim {
     @OrderBy("changedAt ASC")
     private List<ClaimStatusHistory> history = new ArrayList<>();
 
+    /** Questions from the officer and the claimant's answers; saved with the claim, read in time order. */
+    @OneToMany(mappedBy = "claim", cascade = CascadeType.PERSIST)
+    @OrderBy("requestedAt ASC")
+    private List<InformationRequest> informationRequests = new ArrayList<>();
+
     /** Required by JPA. */
     protected Claim() {
     }
@@ -121,6 +126,97 @@ public class Claim {
         status = target;
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Staff and claimant actions. Each checks, in order: ownership (403), status (409),
+    // amount within coverage limit (400), then acts.
+    // ---------------------------------------------------------------------------------------------
+
+    /** An officer takes an unassigned claim: it becomes theirs and moves to UNDER_REVIEW. */
+    public void pickUp(AppUser officer) {
+        if (assignedOfficer != null) {
+            throw new InvalidStatusTransitionException(
+                    "Claim has already been picked up by " + assignedOfficer.getFullName());
+        }
+        changeStatus(ClaimStatus.UNDER_REVIEW, officer, null);
+        assignedOfficer = officer;
+    }
+
+    /** The assigned officer updates the expected liability while assessing (before a decision). */
+    public void reviseReserve(AppUser officer, BigDecimal amount) {
+        requireAssignedOfficer(officer);
+        if (status != ClaimStatus.UNDER_REVIEW && status != ClaimStatus.AWAITING_INFO) {
+            throw new InvalidStatusTransitionException("The reserve can only be revised while the claim is being assessed");
+        }
+        requireWithinCoverageLimit(amount);
+        reserveAmount = amount;
+    }
+
+    /** The assigned officer asks the claimant a question; the claim waits in AWAITING_INFO. */
+    public void requestInformation(AppUser officer, String question) {
+        requireAssignedOfficer(officer);
+        changeStatus(ClaimStatus.AWAITING_INFO, officer, question);
+        informationRequests.add(new InformationRequest(this, officer, question));
+    }
+
+    /** The claimant answers the open question; the claim goes back to UNDER_REVIEW. */
+    public void answerInformationRequest(AppUser claimant, String response) {
+        InformationRequest open = informationRequests.stream()
+                .filter(r -> !r.isAnswered())
+                .reduce((first, second) -> second)   // latest open question
+                .orElse(null);
+        if (status != ClaimStatus.AWAITING_INFO || open == null) {
+            throw new InvalidStatusTransitionException("There is no open question to answer on this claim");
+        }
+        open.respond(response);
+        changeStatus(ClaimStatus.UNDER_REVIEW, claimant, null);
+    }
+
+    /** The assigned officer approves an amount; the reserve becomes that amount (what we still expect to pay). */
+    public void approve(AppUser officer, BigDecimal amount) {
+        requireAssignedOfficer(officer);
+        if (!status.canTransitionTo(ClaimStatus.APPROVED)) {
+            throw new InvalidStatusTransitionException(status, ClaimStatus.APPROVED);
+        }
+        requireWithinCoverageLimit(amount);
+        changeStatus(ClaimStatus.APPROVED, officer, null);
+        approvedAmount = amount;
+        reserveAmount = amount;
+    }
+
+    /** The assigned officer rejects the claim with a reason; nothing is left to pay, so the reserve is 0. */
+    public void reject(AppUser officer, String reason) {
+        requireAssignedOfficer(officer);
+        changeStatus(ClaimStatus.REJECTED, officer, reason);
+        rejectionReason = reason;
+        reserveAmount = BigDecimal.ZERO;
+    }
+
+    /** The assigned officer confirms the approved amount was paid; nothing is left to pay, so the reserve is 0. */
+    public void settle(AppUser officer) {
+        requireAssignedOfficer(officer);
+        changeStatus(ClaimStatus.SETTLED, officer, null);
+        reserveAmount = BigDecimal.ZERO;
+    }
+
+    private void requireWithinCoverageLimit(BigDecimal amount) {
+        if (amount.compareTo(policy.getCoverageLimit()) > 0) {
+            throw new AmountAboveCoverageLimitException(policy.getCoverageLimit(), policy.getCurrency());
+        }
+    }
+
+    private void requireAssignedOfficer(AppUser officer) {
+        if (!isAssignedTo(officer)) {
+            throw new NotAssignedOfficerException();
+        }
+    }
+
+    /** Compares by id once saved; by object identity before (in unit tests, ids are not set). */
+    public boolean isAssignedTo(AppUser user) {
+        if (assignedOfficer == null || user == null) return false;
+        if (assignedOfficer == user) return true;
+        return assignedOfficer.getId() != null && assignedOfficer.getId().equals(user.getId());
+    }
+
     public UUID getId() { return id; }
     public String getClaimNumber() { return claimNumber; }
     public Policy getPolicy() { return policy; }
@@ -137,4 +233,5 @@ public class Claim {
     public Instant getUpdatedAt() { return updatedAt; }
     public long getVersion() { return version; }
     public List<ClaimStatusHistory> getHistory() { return Collections.unmodifiableList(history); }
+    public List<InformationRequest> getInformationRequests() { return Collections.unmodifiableList(informationRequests); }
 }

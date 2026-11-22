@@ -17,6 +17,7 @@ public record ClaimSummaryResponse(
         ProductType productType,
         Market market,
         ClaimStatus status,
+        UUID assignedOfficerId,       // null while unassigned; lets the UI tell "is this mine?"
         String assignedOfficerName,   // null while unassigned
         LocalDate incidentDate,
         BigDecimal estimatedLoss,
@@ -35,6 +36,7 @@ public record ClaimSummaryResponse(
                 c.getPolicy().getProductType(),
                 c.getPolicy().getMarket(),
                 c.getStatus(),
+                c.getAssignedOfficer() == null ? null : c.getAssignedOfficer().getId(),
                 c.getAssignedOfficer() == null ? null : c.getAssignedOfficer().getFullName(),
                 c.getIncidentDate(),
                 c.getEstimatedLoss(),

@@ -8,17 +8,29 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+/** List queries load policy, claimant and officer in one go, so a list is one query rather than one per row. */
 public interface ClaimRepository extends JpaRepository<Claim, UUID> {
 
-    /** A claimant's own claims, newest first. Loads what the list shows in one query. */
+    /** A claimant's own claims, newest first. */
     @EntityGraph(attributePaths = {"policy", "claimant", "assignedOfficer"})
     List<Claim> findByClaimantIdOrderBySubmittedAtDesc(UUID claimantId);
 
-    /** Every claim, newest first, for the staff work queue. */
+    /** Staff queue, "All": every claim, newest first. */
     @EntityGraph(attributePaths = {"policy", "claimant", "assignedOfficer"})
     List<Claim> findAllByOrderBySubmittedAtDesc();
 
-    /** One claim with everything the detail view shows, including history and who made each change. */
+    /** Staff queue, "Unassigned": claims waiting to be picked up. */
+    @EntityGraph(attributePaths = {"policy", "claimant", "assignedOfficer"})
+    List<Claim> findByAssignedOfficerIsNullOrderBySubmittedAtDesc();
+
+    /** Staff queue, "Assigned to me": every claim the officer holds, in any status. */
+    @EntityGraph(attributePaths = {"policy", "claimant", "assignedOfficer"})
+    List<Claim> findByAssignedOfficerIdOrderBySubmittedAtDesc(UUID officerId);
+
+    /**
+     * One claim with what the detail view shows. History is fetched here; information requests load lazily
+     * (Hibernate can't fetch two lists in one query).
+     */
     @EntityGraph(attributePaths = {"policy", "claimant", "assignedOfficer", "history", "history.changedBy"})
     Optional<Claim> findDetailedById(UUID id);
 

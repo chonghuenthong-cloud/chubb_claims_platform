@@ -1,17 +1,9 @@
 package com.chubb.claims.claim;
 
+import com.chubb.claims.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.LocalDate;
 
@@ -23,28 +15,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * End-to-end through HTTP, Spring, Flyway and a real Postgres (started in Docker by Testcontainers).
- * Uses the demo seed data (local profile). Each test runs in a transaction that is rolled back afterwards.
- */
-@SpringBootTest
-@AutoConfigureMockMvc
-@Testcontainers
-@Transactional
-class ClaimApiIntegrationTest {
+/** Reporting an incident, listing claims and viewing one claim, end to end. See IntegrationTestBase for the setup. */
+class ClaimApiIntegrationTest extends IntegrationTestBase {
 
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
-
-    // Seeded users and policies (see db/seed/V100__seed_demo_data.sql)
-    static final String ALICE = "00000000-0000-0000-0000-000000000001";
-    static final String PRIYA_STAFF = "00000000-0000-0000-0000-000000000011";
+    // Seeded policies
     static final String ALICE_SG_MOTOR = "00000000-0000-0000-0000-000000000101"; // limit 50,000 SGD, from 2026-01-01
     static final String BEN_MY_MOTOR = "00000000-0000-0000-0000-000000000103";
-
-    @Autowired
-    MockMvc mvc;
 
     private ResultActions submit(String userId, String policyId, LocalDate date, String description, String amount)
             throws Exception {
