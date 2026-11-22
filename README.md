@@ -134,7 +134,7 @@ flowchart LR
     K[["Kafka<br/>topic claim-events"]]
     AUD["Audit log consumer"]
     NOT["Notification consumer"]
-    EXP["Exposure read model<br/>(planned, Part 2)"]
+    EXP["Exposure read model<br/>(not built, time cap)"]
 
     UI -- "REST / JSON" --> API
     API --> DOM
@@ -156,7 +156,7 @@ flowchart LR
 | | Used for | Why |
 |---|---|---|
 | **REST** | Everything a user waits on: submitting a claim, staff actions, lists, the dashboard | The user needs an immediate answer: validation errors, the new claim number, the updated status |
-| **Kafka** | What happens *because* of a change: the **audit log** and **claimant notifications** (built); the exposure read model (planned, Part 2) | Work that can lag by a second without harm. A slow or failing consumer can't block a claim submission |
+| **Kafka** | What happens *because* of a change: the **audit log** and **claimant notifications** (built); the exposure read model (not built: time cap) | Work that can lag by a second without harm. A slow or failing consumer can't block a claim submission |
 
 **How an event travels:** the claim change and its event are saved in **one database transaction** (a *transactional outbox*), so an event exists only if the change committed. A relay publishes outbox rows to the `claim-events` topic (key = claim id, so each claim's events stay in order) and marks them sent once Kafka confirms. If Kafka is down, claims keep working and events wait. Delivery is *at least once*; consumers ignore duplicates by event id. A failing event is retried 3 times, then moved to `claim-events.DLT`.
 
@@ -226,9 +226,37 @@ The backend tests include unit tests for the claim lifecycle, validation rules a
 
 ---
 
+## Scope and prioritisation
+
+**Time:** about 4.5 hours of work, from the first commit (15:44) to the last feature commit (20:03), plus journal edits. That's close to the 5-hour cap, so I stopped building features there.
+
+**How I prioritised:** backend first, as the brief asks, then **thin end-to-end slices**. Each slice adds a working feature from database to screen, is reviewed, and is committed separately, so the system works at every step.
+
+| # | Slice | Committed | Why in this order |
+|---|---|---|---|
+| 1 | Domain model, schema, claim state machine | 17:07 | The foundation everything else depends on |
+| 2 | Basic Angular screen (mock data) | 17:07 | I couldn't judge the backend without seeing the flow |
+| 3 | Claimant: report an incident (first real API) | 18:00 | The brief's first claimant step; proves the full stack end to end |
+| 4 | Staff actions: pick up, assess, approve/settle, reject, request info | 18:51 | The core of claims processing |
+| 5 | Claimant tracking and decisions | 19:14 | A gap I found while testing: a claimant couldn't see why a claim was rejected |
+| 6 | Team dashboard: workload, performance, liability exposure | 19:29 | Explicitly in the brief |
+| 7 | README | 19:36 | A reviewer who can't start the app may never look at the code |
+| 8 | Kafka: outbox, audit log, notifications | 20:03 | The brief's REST + Kafka requirement |
+
+**Deliberately left out** (details in [docs/decisions.md](docs/decisions.md)):
+
+| Left out | Why |
+|---|---|
+| Kafka exposure read model | Not built (time cap). Live SQL is exact at this scale; at production volume, exposure would be kept as running totals from claim events (the events already carry reserve before/after) |
+| JWT sign-in | The brief doesn't require authentication. Role checks are in place behind a temporary `X-User-Id` stub, so switching to JWT changes one class |
+| Live push for notifications | Notifications are created via Kafka within seconds; the bell refreshes on navigation. Server-Sent Events would be next |
+| Pagination, reassignment, appeals, audit log screen, dashboard time filter | Not needed to show the core flows with demo data |
+| Generated frontend types, broader frontend tests | Backend first: 101 backend tests (including real Postgres and Kafka) vs 2 frontend tests |
+
+**With more time, next:** (1) JWT sign-in, (2) the Kafka exposure read model, (3) live push for notifications, (4) pagination and frontend types generated from the OpenAPI spec.
+
+---
+
 ## Further reading
 - **[docs/decisions.md](docs/decisions.md):** architecture decisions with trade-offs, every business rule (with its code and test), what claimants can see, how dashboard figures are calculated, and **known gaps**.
 - **[AI_JOURNAL.md](AI_JOURNAL.md):** a running log of what I asked the AI, what I accepted, challenged and overrode, including bugs the tests caught.
-
-### Main known gaps
-Exposure read model (Kafka Part 2) not yet built · temporary `X-User-Id` identity instead of JWT · no live push for notifications · no pagination · no reassignment or appeal flow · dashboard has no time filter. Details and reasons are in [docs/decisions.md](docs/decisions.md).

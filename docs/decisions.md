@@ -8,7 +8,7 @@ Short records of the key decisions: what was chosen, why, and what was given up.
 
 ## D2. One service (modular monolith), Kafka consumers in-process
 - **Why:** In a 2–5 hour sprint, every extra service adds a build, config, Docker image and failure mode. Package boundaries (`claim`, `policy`, `user`, `events`, `insights`, `notification`) keep the seams visible, so a module can be extracted later.
-- **Kafka does real work:** every claim change publishes a domain event (via a transactional outbox); in-process consumers keep an audit log and create claimant notifications (built), and will keep the exposure read model (Part 2, planned). A slow or failing consumer cannot block a claim submission. See **Events and Kafka** below.
+- **Kafka does real work:** every claim change publishes a domain event (via a transactional outbox); in-process consumers keep an audit log and create claimant notifications (built), and could keep an exposure read model (Part 2, not built: time cap). A slow or failing consumer cannot block a claim submission. See **Events and Kafka** below.
 - **Trade-off:** One deployable means one scaling unit. Extraction is the documented next step.
 
 ## D3. PostgreSQL in Docker, schema managed by Flyway
@@ -60,7 +60,7 @@ Paths are under `backend/claims-service/src/main/java/com/chubb/claims/`.
 | Reserve always means "what we still expect to pay": approve → reserve = approved amount; reject → 0; settle → 0 | `claim/Claim.approve`, `reject`, `settle` | `ClaimTest`, `ClaimActionsIntegrationTest` | Eunice (S10) |
 | Settling pays exactly the approved amount (no separate paid amount) | `claim/Claim.settle` | `ClaimActionsIntegrationTest` | Eunice |
 | A claim's amounts are in its policy's currency; no FX conversion | `claim/ClaimSummaryResponse.from` | (none yet) | Eunice (B6) |
-| Liability exposure = sum of reserves (S10 makes this a simple sum over all claims) | (planned, not built) | | Proposed (D6) |
+| Liability exposure = sum of reserves on open claims, per currency (S10 makes this a simple sum) | `dashboard/DashboardService` | `DashboardIntegrationTest` | Eunice (D6, dashboard milestone) |
 
 ### Staff actions
 | Rule | Code | Test | Decided |
@@ -101,7 +101,7 @@ Every claimant endpoint (submit, My claims, claim page, answer) returns claimant
 
 Tested by `ClaimApiIntegrationTest` (`claimantSeesOwnClaimWithTimelineButNoInternalFigures`, `claimantSeesDecisions`) and `ClaimActionsIntegrationTest` (the answer response). Decided by Eunice (C1–C4; showing the coverage limit was her override of the AI's recommendation).
 
-Claimants see changes when they open the app; live push updates are planned with Kafka.
+Claimants see changes when they open the app, and get a notification (created via Kafka) for each staff status change; there is no live push.
 | ⚠️ Caller identity comes from the `X-User-Id` header, which anyone can set: a temporary stub until JWT | `user/CurrentUserService` | | Eunice (P6) |
 
 ### Team dashboard (`GET /api/dashboard`, staff only)
@@ -120,7 +120,7 @@ All figures are **all-time** and calculated **live with SQL** on every request (
 
 **Trade-off: live SQL vs a Kafka read model.** Live queries are always exact and add no moving parts, which suits this scale. At production volume (six markets, many officers), the dashboard would read from summary tables kept up to date by Kafka consumers of claim events, the design planned in D2. (Eunice)
 
-### Events and Kafka (Part 1 built; Part 2, the exposure read model, planned)
+### Events and Kafka (Part 1 built; Part 2, the exposure read model, not built: time cap)
 **REST vs Kafka, as built:** REST for everything a user waits on (submit, staff actions, lists, dashboard). Kafka for what happens *because* of a change and can lag by a second: the audit log and claimant notifications.
 
 | Rule | Code | Test | Decided |
@@ -152,7 +152,7 @@ All figures are **all-time** and calculated **live with SQL** on every request (
 - ~~Actions don't publish Kafka events yet.~~ **Closed** by Kafka Part 1. (Eunice, S15)
 - ~~Claimants can't see decisions yet.~~ **Closed** by the claimant tracking milestone: the claimant claim page shows the decision, timeline and questions. (Eunice, V9)
 - **Dashboard has no time filter.** All figures are all-time; a period filter (7 / 30 / 90 days) would suit managers better at real volume.
-- **Dashboard queries run on every page load.** Fine at this scale. Kafka Part 2 (planned) moves liability exposure to a Kafka-fed read model; workload and performance stay on live SQL.
+- **Dashboard queries run on every page load.** Fine at this scale. A Kafka-fed exposure read model (Part 2) was **not built (time cap)**: live SQL is exact at this scale; at production volume, exposure would be kept as running totals from claim events, which already carry reserve before/after. (Eunice)
 - **No live push for claimants.** Notifications are created by Kafka within seconds, but the bell refreshes only on page load and navigation (decided). Live push (e.g. Server-Sent Events) would be the next step.
 - **No audit log screen.** The audit log is queryable in the database only.
 - **Stale screens aren't detected.** The UI doesn't send the claim version it loaded, so an officer acting on an old screen is only stopped by the status checks, not by a version mismatch. (Eunice, S12)
