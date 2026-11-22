@@ -87,7 +87,21 @@ Paths are under `backend/claims-service/src/main/java/com/chubb/claims/`.
 |------|------|------|---------|
 | Only claimants can report incidents and see "my claims" / "my policies" | `user/CurrentUserService.require` (called by each controller) | `ClaimApiIntegrationTest` | Eunice (P6) |
 | Only staff can see the full work queue | `claim/ClaimController.allClaims` | `ClaimApiIntegrationTest` | Eunice (P6) |
-| One claim in full (`GET /api/claims/{id}`): staff can see any claim; a claimant only their own. Someone else's claim returns 404, the same as a missing one | `claim/ClaimService.detail` | `ClaimApiIntegrationTest` | Eunice (R8) |
+| One claim, staff view (`GET /api/claims/{id}`): staff only, any claim, includes the reserve | `claim/ClaimController.detail` | `ClaimApiIntegrationTest` | Eunice (R8, C2) |
+| One claim, claimant view (`GET /api/me/claims/{id}`): claimant only, own claims only; someone else's claim returns 404, the same as a missing one | `claim/ClaimService.claimantDetail` | `ClaimApiIntegrationTest` | Eunice (R8, C2) |
+
+### What claimants see
+Every claimant endpoint (submit, My claims, claim page, answer) returns claimant-facing types (`ClaimantClaimSummary`, `ClaimantClaimDetail`), so internal figures never leave the server.
+
+| Shown to the claimant | Not sent to the claimant |
+|---|---|
+| Status, decision (approved amount or rejection reason), estimated loss, policy, coverage limit | Reserve |
+| Officer's **name**; timeline with staff names and notes (info questions, rejection reasons) | Officer's internal id |
+| Questions and their answers | |
+
+Tested by `ClaimApiIntegrationTest` (`claimantSeesOwnClaimWithTimelineButNoInternalFigures`, `claimantSeesDecisions`) and `ClaimActionsIntegrationTest` (the answer response). Decided by Eunice (C1–C4; showing the coverage limit was her override of the AI's recommendation).
+
+Claimants see changes when they open the app; live push updates are planned with Kafka.
 | ⚠️ Caller identity comes from the `X-User-Id` header, which anyone can set: a temporary stub until JWT | `user/CurrentUserService` | | Eunice (P6) |
 
 ### Known gaps in the rules
@@ -99,7 +113,8 @@ Paths are under `backend/claims-service/src/main/java/com/chubb/claims/`.
 - **Reserve changes are not audited.** The history table records status changes only, so a revised reserve keeps no record of who changed it, from what, or when. A reserve-change table is the fix. (Eunice, S9)
 - **No reassignment.** If the assigned officer is away, nobody else can act on their claims. (Eunice: self pick-up only)
 - **Actions don't publish Kafka events yet.** Planned for the Kafka milestone. (Eunice, S15)
-- **Claimants can't see decisions yet.** The detail endpoint already returns the approved amount, rejection reason and history to the claimant, but no claimant screen shows them. This is a gap against the brief ("receive decisions"); planned as the claimant tracking milestone. (Eunice, V9)
+- ~~Claimants can't see decisions yet.~~ **Closed** by the claimant tracking milestone: the claimant claim page shows the decision, timeline and questions. (Eunice, V9)
+- **No live updates for claimants.** A claimant sees a decision only when they open or reload the app. Push notifications are planned with Kafka.
 - **Stale screens aren't detected.** The UI doesn't send the claim version it loaded, so an officer acting on an old screen is only stopped by the status checks, not by a version mismatch. (Eunice, S12)
 
 ### Demo data (not rules)

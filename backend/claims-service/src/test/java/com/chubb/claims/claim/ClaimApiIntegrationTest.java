@@ -42,21 +42,25 @@ class ClaimApiIntegrationTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.claimNumber").value(matchesPattern("CLM-\\d{6}")))
                 .andExpect(jsonPath("$.status").value("SUBMITTED"))
                 .andExpect(jsonPath("$.estimatedLoss").value(60000.00))
-                .andExpect(jsonPath("$.reserveAmount").value(50000.00))
-                .andExpect(jsonPath("$.currency").value("SGD"));
+                .andExpect(jsonPath("$.currency").value("SGD"))
+                // Claimant-facing: no internal figures
+                .andExpect(jsonPath("$.reserveAmount").doesNotExist());
 
-        // Newest first in the claimant's list (3 seeded + 1 new)
+        // Newest first in the claimant's list (3 seeded + 1 new), also without internal figures
         mvc.perform(get("/api/me/claims").header("X-User-Id", ALICE))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(4)))
                 .andExpect(jsonPath("$[0].incidentDescription").doesNotExist())
                 .andExpect(jsonPath("$[0].status").value("SUBMITTED"))
-                .andExpect(jsonPath("$[0].estimatedLoss").value(60000.00));
+                .andExpect(jsonPath("$[0].estimatedLoss").value(60000.00))
+                .andExpect(jsonPath("$[0].reserveAmount").doesNotExist())
+                .andExpect(jsonPath("$[0].assignedOfficerId").doesNotExist());
 
-        // And visible to staff in the work queue (5 seeded + 1 new)
+        // Visible to staff in the work queue (5 seeded + 1 new), with the reserve capped at the limit
         mvc.perform(get("/api/claims").header("X-User-Id", PRIYA_STAFF))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(6)));
+                .andExpect(jsonPath("$", hasSize(6)))
+                .andExpect(jsonPath("$[0].reserveAmount").value(50000.00));
     }
 
     @Test
@@ -105,31 +109,63 @@ class ClaimApiIntegrationTest extends IntegrationTestBase {
         mvc.perform(get("/api/claims").header("X-User-Id", ALICE)).andExpect(status().isForbidden());
     }
 
-    // --- GET /api/claims/{id} ---
+    // --- One claim: GET /api/me/claims/{id} (claimant) and GET /api/claims/{id} (staff) ---
 
     static final String ALICE_AWAITING_INFO_CLAIM = "00000000-0000-0000-0000-000000001003"; // CLM-000003
     static final String BEN_CLAIM = "00000000-0000-0000-0000-000000001002";                 // CLM-000002
+    static final String BEN_APPROVED_CLAIM = "00000000-0000-0000-0000-000000001004";        // CLM-000004
+    static final String ALICE_REJECTED_CLAIM = "00000000-0000-0000-0000-000000001005";      // CLM-000005
 
     @Test
-    void claimantSeesOwnClaimWithDescriptionAndHistory() throws Exception {
-        mvc.perform(get("/api/claims/" + ALICE_AWAITING_INFO_CLAIM).header("X-User-Id", ALICE))
+    void claimantSeesOwnClaimWithTimelineButNoInternalFigures() throws Exception {
+        mvc.perform(get("/api/me/claims/" + ALICE_AWAITING_INFO_CLAIM).header("X-User-Id", ALICE))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.summary.claimNumber").value("CLM-000003"))
                 .andExpect(jsonPath("$.summary.status").value("AWAITING_INFO"))
                 .andExpect(jsonPath("$.incidentDescription").value(matchesPattern("Burst pipe.*")))
-                // Oldest first: submitted -> picked up -> info requested
+                .andExpect(jsonPath("$.coverageLimit").value(500000.00))
+                .andExpect(jsonPath("$.assignedOfficerName").value("Daniel Wong"))
+                .andExpect(jsonPath("$.informationRequests", hasSize(1)))
+                // Oldest first: submitted -> picked up -> info requested, with staff names and notes
                 .andExpect(jsonPath("$.history", hasSize(3)))
                 .andExpect(jsonPath("$.history[0].fromStatus").doesNotExist())
                 .andExpect(jsonPath("$.history[0].toStatus").value("SUBMITTED"))
                 .andExpect(jsonPath("$.history[0].changedByName").value("Alice Tan"))
                 .andExpect(jsonPath("$.history[2].toStatus").value("AWAITING_INFO"))
-                .andExpect(jsonPath("$.history[2].changedByName").value("Daniel Wong"));
+                .andExpect(jsonPath("$.history[2].changedByName").value("Daniel Wong"))
+                .andExpect(jsonPath("$.history[2].note").value("Requested plumber report."))
+                // Internal figures never reach the claimant
+                .andExpect(jsonPath("$.summary.reserveAmount").doesNotExist())
+                .andExpect(jsonPath("$.summary.assignedOfficerId").doesNotExist())
+                .andExpect(jsonPath("$.reserveAmount").doesNotExist());
+    }
+
+    @Test
+    void claimantSeesDecisions() throws Exception {
+        mvc.perform(get("/api/me/claims/" + BEN_APPROVED_CLAIM).header("X-User-Id", BEN))
+                .andExpect(jsonPath("$.summary.status").value("APPROVED"))
+                .andExpect(jsonPath("$.approvedAmount").value(8000.00));
+        mvc.perform(get("/api/me/claims/" + ALICE_REJECTED_CLAIM).header("X-User-Id", ALICE))
+                .andExpect(jsonPath("$.summary.status").value("REJECTED"))
+                .andExpect(jsonPath("$.rejectionReason").value("Incident date is before the policy start date."));
     }
 
     @Test
     void claimantGets404ForSomeoneElsesClaim() throws Exception {
-        mvc.perform(get("/api/claims/" + BEN_CLAIM).header("X-User-Id", ALICE))
+        mvc.perform(get("/api/me/claims/" + BEN_CLAIM).header("X-User-Id", ALICE))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void claimantCannotUseTheStaffClaimUrl() throws Exception {
+        mvc.perform(get("/api/claims/" + ALICE_AWAITING_INFO_CLAIM).header("X-User-Id", ALICE))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void staffCannotUseTheClaimantClaimUrl() throws Exception {
+        mvc.perform(get("/api/me/claims/" + BEN_CLAIM).header("X-User-Id", PRIYA_STAFF))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -146,9 +182,10 @@ class ClaimApiIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    void locationHeaderFromSubmitPointsToTheNewClaim() throws Exception {
+    void locationHeaderFromSubmitPointsToTheClaimantsNewClaim() throws Exception {
         String location = submit(ALICE, ALICE_SG_MOTOR, LocalDate.of(2026, 11, 1), "Cracked windscreen on the expressway", "800")
                 .andExpect(status().isCreated())
+                .andExpect(header().string("Location", matchesPattern("/api/me/claims/.+")))
                 .andReturn().getResponse().getHeader("Location");
 
         mvc.perform(get(location).header("X-User-Id", ALICE))

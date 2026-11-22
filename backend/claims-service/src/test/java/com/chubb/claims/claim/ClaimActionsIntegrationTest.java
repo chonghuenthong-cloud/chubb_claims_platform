@@ -148,7 +148,9 @@ class ClaimActionsIntegrationTest extends IntegrationTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.summary.status").value("UNDER_REVIEW"))
                 .andExpect(jsonPath("$.informationRequests[0].response").value("Quote attached: MYR 8,400 from AutoFix"))
-                .andExpect(jsonPath("$.history[-1].changedByName").value("Ben Lim"));
+                .andExpect(jsonPath("$.history[-1].changedByName").value("Ben Lim"))
+                // The claimant gets the claimant view back: no reserve
+                .andExpect(jsonPath("$.summary.reserveAmount").doesNotExist());
     }
 
     @Test

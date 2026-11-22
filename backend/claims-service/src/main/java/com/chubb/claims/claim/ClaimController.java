@@ -41,42 +41,52 @@ public class ClaimController {
 
     // --- Claimant ---
 
+    // Claimant endpoints return claimant-facing types (ClaimantClaimSummary / ClaimantClaimDetail),
+    // which leave out internal figures such as the reserve.
+
     /** Claimant reports an incident. Returns 201 with the new claim in SUBMITTED status. */
     @PostMapping("/api/claims")
-    public ResponseEntity<ClaimSummaryResponse> submit(
+    public ResponseEntity<ClaimantClaimSummary> submit(
             @RequestHeader(value = CurrentUserService.USER_HEADER, required = false) UUID userId,
             @Valid @RequestBody SubmitClaimRequest request) {
         AppUser claimant = currentUser.require(userId, Role.CLAIMANT);
-        ClaimSummaryResponse created = claimService.submit(claimant, request);
-        return ResponseEntity.created(URI.create("/api/claims/" + created.id())).body(created);
+        ClaimantClaimSummary created = claimService.submit(claimant, request);
+        return ResponseEntity.created(URI.create("/api/me/claims/" + created.id())).body(created);
     }
 
     /** Claimant's own claims, newest first. */
     @GetMapping("/api/me/claims")
-    public List<ClaimSummaryResponse> myClaims(
+    public List<ClaimantClaimSummary> myClaims(
             @RequestHeader(value = CurrentUserService.USER_HEADER, required = false) UUID userId) {
         return claimService.claimsOf(currentUser.require(userId, Role.CLAIMANT));
     }
 
+    /** Claimant's own claim: status, decision, timeline and questions. Someone else's claim is 404. */
+    @GetMapping("/api/me/claims/{id}")
+    public ClaimantClaimDetail myClaim(
+            @RequestHeader(value = CurrentUserService.USER_HEADER, required = false) UUID userId,
+            @PathVariable UUID id) {
+        return claimService.claimantDetail(currentUser.require(userId, Role.CLAIMANT), id);
+    }
+
     /** Claimant answers the open question: AWAITING_INFO -> UNDER_REVIEW. */
     @PostMapping("/api/claims/{id}/answer")
-    public ClaimDetailResponse answer(
+    public ClaimantClaimDetail answer(
             @RequestHeader(value = CurrentUserService.USER_HEADER, required = false) UUID userId,
             @PathVariable UUID id, @Valid @RequestBody AnswerRequest request) {
         return claimService.answerInformationRequest(currentUser.require(userId, Role.CLAIMANT), id, request.response());
     }
 
-    // --- Both roles ---
+    // --- Staff ---
 
-    /** One claim in full. Staff: any claim. Claimant: own claims only (else 404). */
+    /** Any claim in full, including the reserve. */
     @GetMapping("/api/claims/{id}")
     public ClaimDetailResponse detail(
             @RequestHeader(value = CurrentUserService.USER_HEADER, required = false) UUID userId,
             @PathVariable UUID id) {
-        return claimService.detail(currentUser.require(userId), id);
+        currentUser.require(userId, Role.STAFF);
+        return claimService.staffDetail(id);
     }
-
-    // --- Staff ---
 
     /** Staff work queue, newest first. filter: ALL (default), UNASSIGNED or MINE. */
     @GetMapping("/api/claims")

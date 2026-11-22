@@ -3,7 +3,6 @@ package com.chubb.claims.claim;
 import com.chubb.claims.policy.Policy;
 import com.chubb.claims.policy.PolicyRepository;
 import com.chubb.claims.user.AppUser;
-import com.chubb.claims.user.Role;
 import com.chubb.claims.web.ApiException;
 import com.chubb.claims.web.FieldValidationException;
 import org.springframework.http.HttpStatus;
@@ -31,7 +30,7 @@ public class ClaimService {
      * Field checks (required, not in future, lengths) have already run on the request.
      */
     @Transactional
-    public ClaimSummaryResponse submit(AppUser claimant, SubmitClaimRequest request) {
+    public ClaimantClaimSummary submit(AppUser claimant, SubmitClaimRequest request) {
         // Another person's policy gets the same answer as a missing one, so policy ids can't be probed
         Policy policy = policies.findById(request.policyId())
                 .filter(p -> p.getHolder().getId().equals(claimant.getId()))
@@ -48,26 +47,30 @@ public class ClaimService {
                 request.incidentDate(), request.incidentDescription().trim(), request.estimatedLoss());
 
         // Flush now so database-generated timestamps are set before the response is built
-        return ClaimSummaryResponse.from(claims.saveAndFlush(claim));
+        // saveAndFlush is right here: the claim is new, so it is persisted (not merged)
+        return ClaimantClaimSummary.from(claims.saveAndFlush(claim));
+    }
+
+    /** Staff: any claim in full, including internal figures. */
+    @Transactional(readOnly = true)
+    public ClaimDetailResponse staffDetail(UUID claimId) {
+        return ClaimDetailResponse.from(load(claimId));
     }
 
     /**
-     * One claim in full. Staff can see any claim; a claimant only their own.
+     * Claimant: one of their own claims, without internal figures.
      * Someone else's claim gets the same 404 as a missing one, so claim ids can't be probed.
      */
     @Transactional(readOnly = true)
-    public ClaimDetailResponse detail(AppUser caller, UUID claimId) {
-        return claims.findDetailedById(claimId)
-                .filter(c -> caller.getRole() == Role.STAFF || c.getClaimant().getId().equals(caller.getId()))
-                .map(ClaimDetailResponse::from)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Claim not found"));
+    public ClaimantClaimDetail claimantDetail(AppUser claimant, UUID claimId) {
+        return ClaimantClaimDetail.from(loadOwn(claimant, claimId));
     }
 
-    /** The claimant's own claims, newest first. */
+    /** The claimant's own claims, newest first, without internal figures. */
     @Transactional(readOnly = true)
-    public List<ClaimSummaryResponse> claimsOf(AppUser claimant) {
+    public List<ClaimantClaimSummary> claimsOf(AppUser claimant) {
         return claims.findByClaimantIdOrderBySubmittedAtDesc(claimant.getId()).stream()
-                .map(ClaimSummaryResponse::from)
+                .map(ClaimantClaimSummary::from)
                 .toList();
     }
 
@@ -110,14 +113,13 @@ public class ClaimService {
         return save(claim);
     }
 
-    /** Claimant answers the open question. Someone else's claim gets 404, as with viewing. */
+    /** Claimant answers the open question. Someone else's claim gets 404, as with viewing. Returns the claimant view. */
     @Transactional
-    public ClaimDetailResponse answerInformationRequest(AppUser claimant, UUID claimId, String response) {
-        Claim claim = claims.findDetailedById(claimId)
-                .filter(c -> c.getClaimant().getId().equals(claimant.getId()))
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Claim not found"));
+    public ClaimantClaimDetail answerInformationRequest(AppUser claimant, UUID claimId, String response) {
+        Claim claim = loadOwn(claimant, claimId);
         claim.answerInformationRequest(claimant, response.trim());
-        return save(claim);
+        claims.flush();
+        return ClaimantClaimDetail.from(claim);
     }
 
     @Transactional
@@ -143,6 +145,13 @@ public class ClaimService {
 
     private Claim load(UUID claimId) {
         return claims.findDetailedById(claimId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Claim not found"));
+    }
+
+    /** The claimant's own claim; someone else's is reported as not found. */
+    private Claim loadOwn(AppUser claimant, UUID claimId) {
+        return claims.findDetailedById(claimId)
+                .filter(c -> c.getClaimant().getId().equals(claimant.getId()))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Claim not found"));
     }
 

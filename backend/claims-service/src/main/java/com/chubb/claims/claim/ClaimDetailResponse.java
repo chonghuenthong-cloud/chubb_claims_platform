@@ -31,15 +31,24 @@ public record ClaimDetailResponse(
 
     /** Needs policy, claimant, officer and history loaded; information requests load lazily in the same transaction. */
     static ClaimDetailResponse from(Claim c) {
-        List<StatusChange> history = c.getHistory().stream()
+        return new ClaimDetailResponse(ClaimSummaryResponse.from(c), c.getIncidentDescription(),
+                c.getPolicy().getCoverageLimit(), c.getApprovedAmount(), c.getRejectionReason(),
+                historyOf(c), requestsOf(c));
+    }
+
+    /** Timeline entries, shared with the claimant view. */
+    static List<StatusChange> historyOf(Claim c) {
+        return c.getHistory().stream()
                 .map(h -> new StatusChange(h.getFromStatus(), h.getToStatus(), h.getChangedBy().getFullName(),
                         h.getNote(), h.getChangedAt()))
                 .toList();
-        List<InfoRequest> requests = c.getInformationRequests().stream()
+    }
+
+    /** Questions and answers, shared with the claimant view. */
+    static List<InfoRequest> requestsOf(Claim c) {
+        return c.getInformationRequests().stream()
                 .map(r -> new InfoRequest(r.getId(), r.getQuestion(), r.getRequestedBy().getFullName(),
                         r.getRequestedAt(), r.getResponse(), r.getRespondedAt()))
                 .toList();
-        return new ClaimDetailResponse(ClaimSummaryResponse.from(c), c.getIncidentDescription(),
-                c.getPolicy().getCoverageLimit(), c.getApprovedAmount(), c.getRejectionReason(), history, requests);
     }
 }

@@ -24,11 +24,11 @@ public class CurrentUserService {
     }
 
     /**
-     * Returns the calling user, whatever their role. For endpoints both roles use, where access depends on the data.
+     * Returns the calling user, whatever their role.
      *
      * @throws ApiException 401 if the header is missing or names no user
      */
-    public AppUser require(UUID userId) {
+    private AppUser require(UUID userId) {
         if (userId == null) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing " + USER_HEADER + " header");
         }
