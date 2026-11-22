@@ -4,4 +4,10 @@ YGP_FullStack_candidate_assessment_brief_v2.docx
 # Personal AI working instructions: local only
 Instructions.md
 
-# Stack-specific ignores (build output, node_modules, IDE files) are added once the stack is chosen
+# Java / Maven build output
+target/
+
+# IDE files
+.idea/
+.vscode/
+*.iml

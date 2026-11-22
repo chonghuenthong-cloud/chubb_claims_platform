@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: claims-service
+
+  # Matches docker-compose.yml. Override with environment variables outside local dev.
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/claims}
+    username: ${DB_USER:claims}
+    password: ${DB_PASSWORD:claims}
+
+  # "local" adds demo seed data (application-local.yml). Other environments set SPRING_PROFILES_ACTIVE.
+  profiles:
+    default: local
+
+  flyway:
+    locations: classpath:db/migration
+
+  jpa:
+    # Flyway owns the schema; Hibernate only checks that entities match it
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+# 8080 is taken by a local Oracle listener on the dev machine, so default to 8081
+server:
+  port: ${PORT:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

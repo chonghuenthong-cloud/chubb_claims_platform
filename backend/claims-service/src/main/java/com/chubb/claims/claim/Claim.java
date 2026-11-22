@@ -1,0 +1,140 @@
+package com.chubb.claims.claim;
+
+import com.chubb.claims.policy.Policy;
+import com.chubb.claims.user.AppUser;
+import jakarta.persistence.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * The central entity: a claimant's request for payment under a policy.
+ * All status changes go through {@link #changeStatus}, which enforces the lifecycle and records history.
+ */
+@Entity
+@Table(name = "claim")
+public class Claim {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    /** Human-readable reference shown to claimants, e.g. CLM-000042. */
+    @Column(name = "claim_number", nullable = false, unique = true)
+    private String claimNumber;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "policy_id")
+    private Policy policy;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "claimant_id")
+    private AppUser claimant;
+
+    /** Staff member handling the claim; null while it waits in the queue. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_officer_id")
+    private AppUser assignedOfficer;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ClaimStatus status;
+
+    @Column(name = "incident_date", nullable = false)
+    private LocalDate incidentDate;
+
+    @Column(name = "incident_description", nullable = false)
+    private String incidentDescription;
+
+    /** What the claimant thinks the loss is. */
+    @Column(name = "estimated_loss", nullable = false, precision = 15, scale = 2)
+    private BigDecimal estimatedLoss;
+
+    /** What the insurer expects to pay. Drives the liability exposure figure. */
+    @Column(name = "reserve_amount", nullable = false, precision = 15, scale = 2)
+    private BigDecimal reserveAmount;
+
+    @Column(name = "approved_amount", precision = 15, scale = 2)
+    private BigDecimal approvedAmount;
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
+
+    @CreationTimestamp
+    @Column(name = "submitted_at", nullable = false, updatable = false)
+    private Instant submittedAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    /** Optimistic lock: stops two officers from silently overwriting each other's changes. */
+    @Version
+    private long version;
+
+    /** Saved together with the claim; read in time order. */
+    @OneToMany(mappedBy = "claim", cascade = CascadeType.PERSIST)
+    @OrderBy("changedAt ASC")
+    private List<ClaimStatusHistory> history = new ArrayList<>();
+
+    /** Required by JPA. */
+    protected Claim() {
+    }
+
+    /**
+     * Creates a new claim in SUBMITTED status.
+     * The initial reserve is the claimant's estimate, capped at the policy's coverage limit
+     * (an assumption; an officer can revise it during review).
+     */
+    public static Claim submit(String claimNumber, Policy policy, AppUser claimant,
+                               LocalDate incidentDate, String incidentDescription, BigDecimal estimatedLoss) {
+        Claim claim = new Claim();
+        claim.claimNumber = claimNumber;
+        claim.policy = policy;
+        claim.claimant = claimant;
+        claim.incidentDate = incidentDate;
+        claim.incidentDescription = incidentDescription;
+        claim.estimatedLoss = estimatedLoss;
+        claim.reserveAmount = estimatedLoss.min(policy.getCoverageLimit());
+        claim.status = ClaimStatus.SUBMITTED;
+        claim.history.add(new ClaimStatusHistory(claim, null, ClaimStatus.SUBMITTED, claimant, null));
+        return claim;
+    }
+
+    /**
+     * Moves the claim to {@code target} and records who did it.
+     *
+     * @throws InvalidStatusTransitionException if the lifecycle does not allow the move
+     */
+    public void changeStatus(ClaimStatus target, AppUser changedBy, String note) {
+        if (!status.canTransitionTo(target)) {
+            throw new InvalidStatusTransitionException(status, target);
+        }
+        history.add(new ClaimStatusHistory(this, status, target, changedBy, note));
+        status = target;
+    }
+
+    public UUID getId() { return id; }
+    public String getClaimNumber() { return claimNumber; }
+    public Policy getPolicy() { return policy; }
+    public AppUser getClaimant() { return claimant; }
+    public AppUser getAssignedOfficer() { return assignedOfficer; }
+    public ClaimStatus getStatus() { return status; }
+    public LocalDate getIncidentDate() { return incidentDate; }
+    public String getIncidentDescription() { return incidentDescription; }
+    public BigDecimal getEstimatedLoss() { return estimatedLoss; }
+    public BigDecimal getReserveAmount() { return reserveAmount; }
+    public BigDecimal getApprovedAmount() { return approvedAmount; }
+    public String getRejectionReason() { return rejectionReason; }
+    public Instant getSubmittedAt() { return submittedAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public long getVersion() { return version; }
+    public List<ClaimStatusHistory> getHistory() { return Collections.unmodifiableList(history); }
+}
