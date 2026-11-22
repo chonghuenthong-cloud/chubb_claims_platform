@@ -26,7 +26,7 @@ Legend: ✅ accepted · ⚠️ challenged · ❌ overrode
 | 5 | API contract | Code-first (generated OpenAPI) vs contract-first | ✅ Code-first |
 | 6 | Journal | Start now | ✅ Yes |
 
-**Why:** _(add your own reasoning here)_
+**Why:** I chose Spring Boot because Java was already installed and I have learned Java in my university studies before. I picked one service because of the limitation of time.
 
 ---
 
@@ -59,7 +59,7 @@ Legend: ✅ accepted · ⚠️ challenged · ❌ overrode
 - Hibernate's schema check rejected `CHAR(3)` for currency → changed to `VARCHAR(3)`.
 - Port 8080 is taken by a local Oracle listener → the backend runs on 8081.
 
-**My review:** _(accept / challenge / override each point above)_
+**My review:** Reviewed in Entry 5. I learned I should always ask AI to suggest me before it builds.
 
 ⚠️ **Challenged the AI's process:** it made the decisions above on its own and only reported them afterwards. I told it to stop deciding for me; from now on it puts every choice to me as options first.
 
@@ -78,7 +78,7 @@ Legend: ✅ accepted · ⚠️ challenged · ❌ overrode
 
 **AI did:** a top bar with a Staff/Claimant switch, a lazy-loaded work queue table (claim, claimant, type, market, status pill, officer, reserve, submitted), and a placeholder claimant page. The build and its 1 test pass.
 
-**Why:** _(add your reasoning here)_
+**Why:** Simple screen with mock data help me understand the flow clearly instead of running the backend only I couldn't see anything.
 
 ---
 
@@ -139,8 +139,7 @@ Legend: ✅ accepted · ⚠️ challenged · ❌ overrode
 
 Tests: 52 backend, 2 frontend, all passing.
 
-**My review:** _(add here)_
-
+**My review:** I found out there are invented demo data so I asked for business rules list. I overrode R8 because a link to a missing endpoint is a broken promise in API, so I preferred to build the endpoint.
 ---
 
 ## Entry 7: Staff actions
@@ -185,7 +184,7 @@ Tests: 52 backend, 2 frontend, all passing.
 - V8, the work queue flashed "No claims." while loading: ✅ **shows nothing until loaded**, the same pattern as My claims. Verified: no flash on a fresh load.
 - V9, claimants can't see decisions (approved amount, rejection reason): ✅ **left for the claimant tracking milestone**, which should come next, since the brief requires claimants to "receive decisions".
 
-**My review:** _(add here)_
+**My review:** The test caught 2 AI bugs before I saw anything in the browser. So I asked for database-level test which the bug cannot come back silently.
 
 ---
 
@@ -218,7 +217,7 @@ Tests: 52 backend, 2 frontend, all passing.
 
 **Review:** the AI listed every change (features, API before/after, files, tests). Beyond-plan items: ✅ X1 keep `CurrentUserService.require(userId)` private (no longer used outside the class); ✅ X2 keep the shared timeline/Q&A helpers, so the staff and claimant views can't drift apart.
 
-**My review:** _(add here)_
+**My review:** I chose to show staff names and coverage limit because I think claimants should understand who is handling their claims and why an amount might be lower for reminder purpose.
 
 ---
 
@@ -247,7 +246,7 @@ Tests: 52 backend, 2 frontend, all passing.
 
 **Verified in the browser:** the dashboard showed the local (test-modified) data, and every figure was cross-checked against the actual claim states, including recalculating the averages by hand. The tabs switch, the work queue has no duplicate heading, and there are no console errors.
 
-**My review:** _(add here)_
+**My review:** When the AI pointed out that I'd left out pick-up → decision, I added it, because 'how fast do officers decide' is the most obvious performance question. I accept that it includes time waiting for the claimant
 
 ---
 
@@ -269,7 +268,7 @@ Tests: 52 backend, 2 frontend, all passing.
 
 **Mermaid diagrams:** automatic checking before pushing was blocked by a permission check. ✅ **Verified on GitHub after pushing:** both the lifecycle and the architecture diagram render correctly, with no raw diagram text or errors on the page.
 
-**My review:** _(add here)_
+**My review:** I did the README before Kafka because a reviewer who can't start the app may never look at the code."
 
 ---
 
@@ -303,4 +302,4 @@ Tests: 52 backend, 2 frontend, all passing.
 
 **Verified in the browser** (after my database reset): Priya picks up CLM-000001 → outbox row published → audit log entry → notification. Alice's bell shows "1" and "Priya Nair picked up CLM-000001"; clicking it opens the claim and marks it read. A reserve revision appears in the audit log (before/after, who) but creates no notification.
 
-**My review:** _(add here)_
+**My review:** I wanted claimants notified of every change so they always know where their claim is, but not about their own actions, which tell them nothing new. The test mistake showed me that a test should check meaning, not formatting.
