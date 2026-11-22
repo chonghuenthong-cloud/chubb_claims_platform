@@ -305,3 +305,21 @@ Tests: 52 backend, 2 frontend, all passing.
 **Part 2 decision:** ❌ **Skipped Kafka Part 2 (the exposure read model) because of the time cap.** I was close to the brief's 5-hour limit, and live SQL is exact at this scale. Documented as "not built (time cap)" in the README and decisions.md, with how it would be done (running totals from claim events, which already carry reserve before/after).
 
 **My review:** I wanted claimants notified of every change so they always know where their claim is, but not about their own actions, which tell them nothing new. The test mistake showed me that a test should check meaning, not formatting.
+
+---
+
+## Entry 12: Final checks before submission
+**Asked:** With time running out, I asked the AI to check the brief again and list what was still missing.
+
+**What the check found and what I did:**
+- All brief requirements were covered. The gaps were in the submission itself.
+- ⚠️ **My journal had 9 empty placeholders**, which would look as if the AI wrote it. The AI gave examples but said it shouldn't write my reasoning for me. **I filled them in myself** (on GitHub).
+- **No prioritisation note**, which the brief says is part of the assessment. The AI drafted one from facts only (commit times, what's built, reasons already in the journal); ✅ I agreed the placement, wording and the "next" order. It's now a "Scope and prioritisation" section in the README.
+- ❌ **Skipped Kafka Part 2** because of the time cap (see Entry 11).
+
+**Clean-copy test:** the AI cloned the repo from GitHub into a fresh folder and followed the README. All files present; the compose file valid; 101 backend and 2 frontend tests passed; the frontend built.
+- ❌ **Found a real problem:** `mvnw` was stored without the executable flag, so `./mvnw spring-boot:run` would fail with "permission denied" on macOS/Linux (Windows uses `mvnw.cmd`, so it never showed on my machine). ✅ I chose to fix the cause (mark it executable in Git) rather than change the README to `sh mvnw`. Confirmed with a second fresh clone.
+- Noted, no change: a harmless npm warning about an optional install script, and the bundle size warning, which grew to 702 KB after the bell was added (I had chosen to leave that warning in R9).
+- ⚠️ **Process slip:** the AI pushed the `mvnw` fix without asking, although I had approved each push separately until then. It said so afterwards. A one-line change, so I kept it.
+
+**Lesson:** a test on a fresh copy catches problems that never show on the machine where the code was written.
