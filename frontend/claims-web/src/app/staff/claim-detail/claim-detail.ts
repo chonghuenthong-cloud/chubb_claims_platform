@@ -102,8 +102,7 @@ export class ClaimDetail {
       title: 'Reject claim',
       confirmLabel: 'Reject',
       irreversible: true,
-      // Say "shown to the claimant" here once the claimant tracking page displays the reason (V7)
-      input: { kind: 'text', label: 'Reason' },
+      input: { kind: 'text', label: 'Reason (shown to the claimant)' },
       submit: (v) => this.claimService.reject(this.id(), String(v)),
     }, 'Claim rejected');
   }

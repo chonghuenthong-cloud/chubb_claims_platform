@@ -8,7 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { ClaimService } from '../../claims/claim.service';
 import { StatusPill } from '../../claims/status-pill';
 import { CurrentUserService } from '../../core/current-user.service';
-import { ClaimSummary } from '../../claims/claim.model';
+import { ClaimantClaimSummary } from '../../claims/claim.model';
 
 /** Claimant view: their own claims, newest first, and the way in to report a new incident. */
 @Component({
@@ -32,10 +32,8 @@ export class MyClaims {
 
   private readonly router = inject(Router);
 
-  /** Opens the answer page for a claim that is waiting on the claimant. */
-  protected open(claim: ClaimSummary): void {
-    if (claim.status === 'AWAITING_INFO') {
-      this.router.navigate(['/claimant/claims', claim.id]);
-    }
+  /** Opens the claim page: status, decision, timeline and questions. */
+  protected open(claim: ClaimantClaimSummary): void {
+    this.router.navigate(['/claimant/claims', claim.id]);
   }
 }

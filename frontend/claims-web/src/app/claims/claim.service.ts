@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { ClaimDetail, ClaimSummary, Policy, QueueFilter, SubmitClaimRequest } from './claim.model';
+import {
+  ClaimantClaimDetail, ClaimantClaimSummary, ClaimDetail, ClaimSummary, Policy, QueueFilter, SubmitClaimRequest,
+} from './claim.model';
 
 /** Claim API calls. The user header is added by userHeaderInterceptor. Every action returns the updated claim. */
 @Injectable({ providedIn: 'root' })
@@ -39,18 +41,23 @@ export class ClaimService {
     return this.http.post<ClaimDetail>(`/api/claims/${id}/settle`, null);
   }
 
-  // --- Both roles ---
-
-  /** One claim in full. Staff: any claim; claimant: own claims only. */
+  /** Any claim in full, including the reserve. */
   getClaim(id: string): Observable<ClaimDetail> {
     return this.http.get<ClaimDetail>(`/api/claims/${id}`);
   }
 
   // --- Claimant ---
 
+  // Claimant calls return claimant-facing types without internal figures (no reserve).
+
   /** Their own claims, newest first. */
-  getMyClaims(): Observable<ClaimSummary[]> {
-    return this.http.get<ClaimSummary[]>('/api/me/claims');
+  getMyClaims(): Observable<ClaimantClaimSummary[]> {
+    return this.http.get<ClaimantClaimSummary[]>('/api/me/claims');
+  }
+
+  /** One of their own claims: status, decision, timeline and questions. */
+  getMyClaim(id: string): Observable<ClaimantClaimDetail> {
+    return this.http.get<ClaimantClaimDetail>(`/api/me/claims/${id}`);
   }
 
   /** The policies they can claim against. */
@@ -59,12 +66,12 @@ export class ClaimService {
   }
 
   /** Report an incident. Returns the new claim in SUBMITTED status. */
-  submitClaim(request: SubmitClaimRequest): Observable<ClaimSummary> {
-    return this.http.post<ClaimSummary>('/api/claims', request);
+  submitClaim(request: SubmitClaimRequest): Observable<ClaimantClaimSummary> {
+    return this.http.post<ClaimantClaimSummary>('/api/claims', request);
   }
 
   /** Answer the officer's open question. */
-  answer(id: string, response: string): Observable<ClaimDetail> {
-    return this.http.post<ClaimDetail>(`/api/claims/${id}/answer`, { response });
+  answer(id: string, response: string): Observable<ClaimantClaimDetail> {
+    return this.http.post<ClaimantClaimDetail>(`/api/claims/${id}/answer`, { response });
   }
 }

@@ -33,9 +33,7 @@
       </ng-container>
 
       <tr mat-header-row *matHeaderRowDef="columns"></tr>
-      <!-- Only claims waiting for the claimant's answer open a page, for now -->
-      <tr mat-row *matRowDef="let row; columns: columns"
-          [class.clickable]="row.status === 'AWAITING_INFO'" (click)="open(row)"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns" class="clickable" (click)="open(row)"></tr>
     </table>
   } @else {
     <p class="empty">No claims yet.</p>

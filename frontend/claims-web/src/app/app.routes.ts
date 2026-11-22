@@ -29,7 +29,7 @@ export const routes: Routes = [
       },
       {
         path: 'claims/:id',
-        loadComponent: () => import('./claimant/answer-info/answer-info').then((m) => m.AnswerInfo),
+        loadComponent: () => import('./claimant/my-claim/my-claim').then((m) => m.MyClaim),
       },
     ],
   },

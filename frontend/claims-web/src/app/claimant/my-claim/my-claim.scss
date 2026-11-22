@@ -1,0 +1,130 @@
+.back {
+  margin: -8px 0 8px -12px;
+}
+
+h1 {
+  font: var(--mat-sys-headline-small);
+  margin: 0 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+// Readable single column
+section {
+  max-width: 720px;
+}
+
+// The decision stands out at the top: green for approved/settled, red for rejected
+.decision {
+  border-radius: 12px;
+  padding: 12px 20px;
+  margin-bottom: 16px;
+
+  &.approved { background: #e8f5e9; color: #1b5e20; }
+  &.rejected { background: #ffebee; color: #b71c1c; }
+
+  .headline {
+    font: var(--mat-sys-title-medium);
+    margin: 0;
+  }
+
+  .text {
+    margin: 8px 0 0;
+  }
+}
+
+.card {
+  background: var(--mat-sys-surface-container-lowest);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+h2 {
+  font: var(--mat-sys-title-small);
+  color: var(--mat-sys-on-surface-variant);
+  margin: 0 0 12px;
+}
+
+// Label / value pairs
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 24px;
+  margin: 0;
+}
+
+dt {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+dd {
+  margin: 0;
+}
+
+.text {
+  margin: 0 0 12px;
+  white-space: pre-line;
+}
+
+.meta {
+  color: var(--mat-sys-on-surface-variant);
+  margin: 0 0 4px;
+}
+
+.muted {
+  color: var(--mat-sys-on-surface-variant);
+  font-style: italic;
+}
+
+.qa + .qa {
+  border-top: 1px solid var(--mat-sys-outline-variant);
+  padding-top: 12px;
+}
+
+// The claimant's own answer, indented under the question
+.answer {
+  padding-left: 16px;
+  border-left: 3px solid var(--mat-sys-primary);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+// Timeline, oldest first
+.history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+  }
+
+  li + li {
+    border-top: 1px solid var(--mat-sys-outline-variant);
+  }
+
+  span {
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  .note {
+    flex-basis: 100%;
+    margin: 0;
+  }
+}

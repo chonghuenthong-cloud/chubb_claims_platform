@@ -1,0 +1,88 @@
+<a mat-button routerLink="/claimant" class="back">← My claims</a>
+
+@if (claim(); as c) {
+  @let s = c.summary;
+
+  <h1>{{ s.claimNumber }} <app-status-pill [status]="s.status" /></h1>
+
+  <!-- Decision, once there is one -->
+  @switch (s.status) {
+    @case ('APPROVED') {
+      <section class="decision approved">
+        <p class="headline">Approved: {{ c.approvedAmount | currency: s.currency : 'code' }}, payment to follow</p>
+      </section>
+    }
+    @case ('SETTLED') {
+      <section class="decision approved">
+        <p class="headline">Settled: {{ c.approvedAmount | currency: s.currency : 'code' }} paid</p>
+      </section>
+    }
+    @case ('REJECTED') {
+      <section class="decision rejected">
+        <p class="headline">Rejected</p>
+        @if (c.rejectionReason) { <p class="text">{{ c.rejectionReason }}</p> }
+      </section>
+    }
+  }
+
+  <section class="card">
+    <dl>
+      <dt>Policy</dt><dd>{{ s.policyNumber }} · {{ s.productType === 'MOTOR' ? 'Motor' : 'Property' }} · {{ s.market }}</dd>
+      <dt>Incident date</dt><dd>{{ s.incidentDate | date: 'd MMM y' }}</dd>
+      <dt>Submitted</dt><dd>{{ s.submittedAt | date: 'd MMM y, HH:mm' }}</dd>
+      <dt>Estimated loss</dt><dd>{{ s.estimatedLoss | currency: s.currency : 'code' }}</dd>
+      <dt>Coverage limit</dt><dd>{{ c.coverageLimit | currency: s.currency : 'code' }}</dd>
+      <dt>Officer</dt><dd [class.muted]="!c.assignedOfficerName">{{ c.assignedOfficerName ?? 'Unassigned' }}</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>What happened</h2>
+    <p class="text">{{ c.incidentDescription }}</p>
+  </section>
+
+  @if (c.informationRequests.length) {
+    <section class="card">
+      <h2>Questions</h2>
+      @for (r of c.informationRequests; track r.id) {
+        <div class="qa">
+          <p class="meta">{{ r.requestedByName }} · {{ r.requestedAt | date: 'd MMM y, HH:mm' }}</p>
+          <p class="text">{{ r.question }}</p>
+          @if (r.response) {
+            <p class="text answer">{{ r.response }}</p>
+          }
+        </div>
+      }
+
+      @if (openQuestion()) {
+        <div class="form">
+          <mat-form-field appearance="outline">
+            <mat-label>Your answer</mat-label>
+            <textarea matInput rows="4" [formControl]="answer"></textarea>
+            <mat-hint align="end">{{ answer.value.length }} / 2000</mat-hint>
+            @let errors = answer.errors;
+            @if (errors?.['required']) { <mat-error>Enter your answer</mat-error> }
+            @else if (errors?.['minlength'] || errors?.['maxlength']) { <mat-error>Answer must be 10 to 2000 characters</mat-error> }
+            @else if (errors?.['server']) { <mat-error>{{ errors?.['server'] }}</mat-error> }
+          </mat-form-field>
+          <div class="actions">
+            <button mat-flat-button (click)="send()" [disabled]="sending()">Send answer</button>
+          </div>
+        </div>
+      }
+    </section>
+  }
+
+  <section class="card">
+    <h2>Timeline</h2>
+    <ol class="history">
+      @for (h of c.history; track $index) {
+        <li>
+          <app-status-pill [status]="h.toStatus" />
+          <span>{{ h.changedByName }} · {{ h.changedAt | date: 'd MMM y, HH:mm' }}</span>
+          @if (h.note) { <p class="text note">{{ h.note }}</p> }
+        </li>
+      }
+    </ol>
+  </section>
+}

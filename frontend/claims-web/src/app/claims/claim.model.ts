@@ -60,6 +60,32 @@ export interface InfoRequest {
   respondedAt: string | null;
 }
 
+/** One claim in the claimant's My claims list. Claimant-facing: no reserve, no officer id. */
+export interface ClaimantClaimSummary {
+  id: string;
+  claimNumber: string;
+  policyNumber: string;
+  productType: ProductType;
+  market: string;
+  status: ClaimStatus;
+  incidentDate: string; // YYYY-MM-DD
+  estimatedLoss: number;
+  currency: string;
+  submittedAt: string;
+}
+
+/** One claim as the claimant sees it (GET /api/me/claims/{id}). */
+export interface ClaimantClaimDetail {
+  summary: ClaimantClaimSummary;
+  incidentDescription: string;
+  coverageLimit: number;
+  assignedOfficerName: string | null;
+  approvedAmount: number | null;
+  rejectionReason: string | null;
+  history: StatusChange[]; // oldest first
+  informationRequests: InfoRequest[]; // oldest first
+}
+
 /** Staff work queue filters (GET /api/claims?filter=...). */
 export type QueueFilter = 'ALL' | 'UNASSIGNED' | 'MINE';
 
