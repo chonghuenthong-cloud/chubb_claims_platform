@@ -94,3 +94,49 @@ Legend: ✅ accepted · ⚠️ challenged · ❌ overrode
 **Also decided:** split the work into separate commits (backend, frontend, journal) for a readable history.
 
 **Also raised:** the claimant screen has no "Report an incident" form yet. The form's design questions (real API vs mock, fields, validation, what happens after submit) are still open.
+
+---
+
+## Entry 6: Claimant "Report an incident" (first real API)
+**Asked:** Build the claimant's first step, reporting an incident. The AI asked me two rounds of questions, then showed a numbered build plan (P1–P19), which I approved before any code was written.
+
+**My decisions:**
+| Question | Chose |
+|----------|-------|
+| Real API or mock | ✅ Real API, saved to Postgres |
+| Form fields | ✅ Policy, incident date, description, estimated loss |
+| Validation | ✅ All four: required + amount > 0, date not in future, date within policy period, own policies only |
+| After submit | ✅ Back to My claims, new row at the top, confirmation message |
+| Identity before JWT | ✅ Temporary `X-User-Id` header with a "Viewing as" picker (a stub, replaced by JWT later) |
+| Estimate above coverage limit | ✅ Allow; reserve capped at the limit |
+| Description minimum | ⚠️ **10 characters** (the AI recommended 20) |
+| Staff queue | ✅ Switch to real data |
+
+**AI built:**
+- Backend: `GET /api/me/policies`, `POST /api/claims`, `GET /api/me/claims`, `GET /api/claims` (staff), `GET /api/dev/users` (local profile only). Role checks on every endpoint. Errors in RFC 9457 Problem Details format with per-field messages. Swagger UI at `/swagger-ui.html`.
+- Tests: 47 passing, including 9 integration tests against a real Postgres (Testcontainers). They cover submit, the reserve cap, each validation rejection, and 401/403 role checks.
+- Frontend: "Viewing as" picker with role-based routes and guards, My claims page, the report form (same checks as the backend; server errors shown on the matching field), and the staff queue on real data. The mock data was deleted.
+
+**Issues hit:**
+- My old backend instance was still running on 8081 with old code → I stopped it myself.
+- A stale Angular build cache caused an injector error → cleared.
+- The button's "+" icon was invisible (icon font mismatch) → removed.
+- The AI's first version of the policy-date validator had a leftover hack → it caught and rewrote it before review.
+
+**Verified in the browser:** empty form shows all errors → valid submit as Alice creates CLM-000006 → it appears at the top of her list → switching to Priya shows it in the queue with the reserve capped at SGD 50,000.
+
+**Choices inside the approved plan, flagged for review:** the picker remembers the user across refreshes; it defaults to the first user (Alice); the confirmation shows for 5 seconds.
+
+**Known items:** the bundle is 596 KB against Angular's 500 KB default budget (a warning, not an error). The server-error-on-field display is covered by backend tests but wasn't clicked through in the browser.
+
+⚠️ **Challenged:** I asked why the form showed SGD and why Alice's limit was 50,000, and where the rules were. The answer: currency and limit are **demo data the AI invented** in the seed file, and the reserve cap is a rule in `Claim.submit`. The rules were spread across files with no single list, so I had the AI add a **Business rules** section to `docs/decisions.md` (rule → code → test → who decided), including the gaps it found (nothing links market to currency; one limit per policy).
+
+**Second review (items R1–R10):** I asked the AI to explain R8–R10 clearly before deciding.
+- R1–R7 (picker memory, default user, 5-second message, "Policy not found", trimming, no description in lists, shared status pill and route guards): ✅ kept.
+- R8, the `Location` header pointed to `/api/claims/{id}`, which didn't exist: ❌ **overrode the AI's recommendation** (remove the header) and chose to **build the endpoint now**. Then I decided: it returns detail + status history; someone else's claim → 404; API only, no UI yet. 5 new integration tests, including following the `Location` header after submit.
+- R9, bundle size warning (596 KB vs 500 KB): ❌ **overrode the AI's recommendation** (raise the budget) and **left it as is**.
+- R10, lists not paginated: ✅ documented as a known gap; paging comes with the work-queue filters.
+
+Tests: 52 backend, 2 frontend, all passing.
+
+**My review:** _(add here)_
