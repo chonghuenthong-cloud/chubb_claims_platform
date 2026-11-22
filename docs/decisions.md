@@ -104,6 +104,22 @@ Tested by `ClaimApiIntegrationTest` (`claimantSeesOwnClaimWithTimelineButNoInter
 Claimants see changes when they open the app; live push updates are planned with Kafka.
 | ⚠️ Caller identity comes from the `X-User-Id` header, which anyone can set: a temporary stub until JWT | `user/CurrentUserService` | | Eunice (P6) |
 
+### Team dashboard (`GET /api/dashboard`, staff only)
+All figures are **all-time** and calculated **live with SQL** on every request (`dashboard/DashboardService`). Tested with exact hand-calculated values from the seed data in `DashboardIntegrationTest`.
+
+| Figure | How it's calculated | Decided |
+|------|------|---------|
+| Unassigned queue | Count of claims with no officer, and the oldest submission time (shown as "waiting X") | Eunice |
+| Workload per officer | Each staff member's open claims: Under review, Awaiting info, Approved-not-settled, total. Idle officers show zeros | Eunice (D3) |
+| Liability exposure | Per currency (no FX, B6): sum of reserves on open claims (Submitted, Under review, Awaiting info, Approved), split by market and by product. Rejected and settled claims have a reserve of 0 (S10) | Eunice |
+| Approved / rejected / settled per officer | Counted from the status history: who made each change | Eunice (D5) |
+| Submission → pick-up | Average of (pick-up entry − submission), credited to the officer who picked up | Eunice |
+| Pick-up → decision | Average of (approve/reject entry − pick-up entry), credited to the officer who decided. **Includes time spent waiting for the claimant's answer**, so it measures total assessment time, not only officer effort | Eunice (added after the AI's first plan left it out) |
+| Approval → settlement | Average of (settle entry − approve entry), credited to the officer who settled | Eunice |
+| Display | Durations as hours under 1 day, otherwise days; "–" when there's nothing to average | Eunice (D7, F5) |
+
+**Trade-off: live SQL vs a Kafka read model.** Live queries are always exact and add no moving parts, which suits this scale. At production volume (six markets, many officers), the dashboard would read from summary tables kept up to date by Kafka consumers of claim events, the design planned in D2. (Eunice)
+
 ### Known gaps in the rules
 - **Nothing links market to currency.** A Singapore policy could be stored in MYR. It is only correct today because the demo data was typed that way.
 - **One coverage limit per policy.** Real motor policies have separate limits (own damage, third-party property, and so on).
@@ -114,6 +130,8 @@ Claimants see changes when they open the app; live push updates are planned with
 - **No reassignment.** If the assigned officer is away, nobody else can act on their claims. (Eunice: self pick-up only)
 - **Actions don't publish Kafka events yet.** Planned for the Kafka milestone. (Eunice, S15)
 - ~~Claimants can't see decisions yet.~~ **Closed** by the claimant tracking milestone: the claimant claim page shows the decision, timeline and questions. (Eunice, V9)
+- **Dashboard has no time filter.** All figures are all-time; a period filter (7 / 30 / 90 days) would suit managers better at real volume.
+- **Dashboard queries run on every page load.** Fine at this scale; would move to a Kafka-fed read model at production volume.
 - **No live updates for claimants.** A claimant sees a decision only when they open or reload the app. Push notifications are planned with Kafka.
 - **Stale screens aren't detected.** The UI doesn't send the claim version it loaded, so an officer acting on an old screen is only stopped by the status checks, not by a version mismatch. (Eunice, S12)
 
