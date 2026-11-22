@@ -8,5 +8,5 @@ import java.util.UUID;
 public interface PolicyRepository extends JpaRepository<Policy, UUID> {
 
     /** A claimant may only claim against their own policies. */
-    List<Policy> findByHolderId(UUID holderId);
+    List<Policy> findByHolderIdOrderByPolicyNumber(UUID holderId);
 }

@@ -35,6 +35,54 @@ UNDER_REVIEW → REJECTED
 ```
 `SETTLED` and `REJECTED` are terminal.
 
+## Business rules
+Every rule the system enforces, where it lives in the code, and who decided it. The tests are listed too: their names read as a specification of each rule.
+
+Paths are under `backend/claims-service/src/main/java/com/chubb/claims/`.
+
+### Reporting an incident (claimant)
+| Rule | Code | Test | Decided |
+|------|------|------|---------|
+| All fields required: policy, incident date, description, estimated loss | `claim/SubmitClaimRequest.java` (annotations) | `SubmitClaimRequestValidationTest` | Eunice |
+| Incident date cannot be in the future (judged on the server's date) | `claim/SubmitClaimRequest.java` (`@PastOrPresent`) | `SubmitClaimRequestValidationTest`, `ClaimApiIntegrationTest` | Eunice |
+| Incident date must fall within the policy period (start inclusive, end exclusive) | `claim/ClaimService.submit`, using `policy/Policy.covers` | `PolicyTest`, `ClaimApiIntegrationTest` | Eunice |
+| A claimant can only claim against their own policy; another person's policy is reported as "not found" | `claim/ClaimService.submit` | `ClaimApiIntegrationTest` | Eunice |
+| Description 10 to 2000 characters | `claim/SubmitClaimRequest.java` (`@Size`) | `SubmitClaimRequestValidationTest` | Eunice |
+| Estimated loss greater than 0, at most 2 decimal places | `claim/SubmitClaimRequest.java` (`@Positive`, `@Digits`) | `SubmitClaimRequestValidationTest` | Eunice |
+| An estimate above the coverage limit is allowed | (no check, deliberately) | `ClaimApiIntegrationTest` | Eunice |
+
+### Money
+| Rule | Code | Test | Decided |
+|------|------|------|---------|
+| Initial reserve = estimated loss, capped at the policy's coverage limit | `claim/Claim.submit` | `ClaimTest`, `ClaimApiIntegrationTest` | Eunice (B2) |
+| A claim's amounts are in its policy's currency; no FX conversion | `claim/ClaimSummaryResponse.from` | (none yet) | Eunice (B6) |
+| Liability exposure = reserve on open claims; approved amount once approved | (planned, not built) | | Proposed (D6) |
+
+### Claim lifecycle
+| Rule | Code | Test | Decided |
+|------|------|------|---------|
+| Allowed moves: Submitted → Under review ⇄ Awaiting info → Approved → Settled, or Under review → Rejected | `claim/ClaimStatus.canTransitionTo` | `ClaimStatusTest` | Eunice (B1) |
+| Every status change records who, from, to and when | `claim/Claim.changeStatus` | `ClaimTest` | Eunice (B1) |
+| Rejected and Settled are final; no withdraw, no appeal | `claim/ClaimStatus.canTransitionTo` | `ClaimStatusTest` | Eunice (B1) |
+
+### Access
+| Rule | Code | Test | Decided |
+|------|------|------|---------|
+| Only claimants can report incidents and see "my claims" / "my policies" | `user/CurrentUserService.require` (called by each controller) | `ClaimApiIntegrationTest` | Eunice (P6) |
+| Only staff can see the full work queue | `claim/ClaimController.allClaims` | `ClaimApiIntegrationTest` | Eunice (P6) |
+| One claim in full (`GET /api/claims/{id}`): staff can see any claim; a claimant only their own. Someone else's claim returns 404, the same as a missing one | `claim/ClaimService.detail` | `ClaimApiIntegrationTest` | Eunice (R8) |
+| ⚠️ Caller identity comes from the `X-User-Id` header, which anyone can set: a temporary stub until JWT | `user/CurrentUserService` | | Eunice (P6) |
+
+### Known gaps in the rules
+- **Nothing links market to currency.** A Singapore policy could be stored in MYR. It is only correct today because the demo data was typed that way.
+- **One coverage limit per policy.** Real motor policies have separate limits (own damage, third-party property, and so on).
+
+### Known technical gaps
+- **Lists are not paginated.** `GET /api/claims` and `GET /api/me/claims` return every matching claim in one response. Fine for demo data; at production volume the staff queue needs server-side paging. Planned together with work-queue filters ("unassigned", "assigned to me") in the staff milestone, since the two are used together. (Eunice, R10)
+
+### Demo data (not rules)
+Policy numbers, coverage limits, currencies, dates and users in `db/seed/V100__seed_demo_data.sql` were **invented by the AI for the demo**. They are not real Chubb figures. Example: Alice's `SG-MOT-0001` is a Singapore motor policy in SGD with a 50,000 limit.
+
 ## Assumptions (to confirm)
 - **Two roles:** `CLAIMANT` and `STAFF`, matching the brief's "two user types". All staff can see the team dashboard; there is no separate manager role.
 - **Single team:** no team table. All staff form one team.
