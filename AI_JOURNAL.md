@@ -248,3 +248,25 @@ Tests: 52 backend, 2 frontend, all passing.
 **Verified in the browser:** the dashboard showed the local (test-modified) data, and every figure was cross-checked against the actual claim states, including recalculating the averages by hand. The tabs switch, the work queue has no duplicate heading, and there are no console errors.
 
 **My review:** _(add here)_
+
+---
+
+## Entry 10: README
+**Asked:** Write the README. ❌ I chose it **before Kafka** (the AI had suggested Kafka first, so the README could describe the finished system).
+
+**My decisions:**
+| Question | Chose |
+|----------|-------|
+| Sections | ✅ All: quick start + demo walkthrough, features by role, architecture + REST vs Kafka, testing / structure / API / links |
+| Diagram | ✅ Mermaid (GitHub draws it from text) |
+| Kafka | ✅ State it plainly as "planned, not yet wired", with the intended REST vs Kafka split |
+| Length | ✅ Concise, linking to `docs/decisions.md` and this journal |
+| Sign-in | ✅ Explain the "Viewing as" picker only; don't mention the unused seed passwords |
+| Reset instruction | ✅ Include `docker compose down -v` |
+| Title | ✅ "Claims Platform", with Chubb APAC named in the intro (not presented as an official Chubb product) |
+
+**AI checked the README against the running system:** Swagger, OpenAPI and health URLs all return 200; the endpoint table matches the 14 endpoints in the generated OpenAPI spec (the dev-only user list is left out on purpose); `npm start` uses the proxy; the reset command matches the compose volume. It corrected one inaccurate line ("one claim in each status": the seed has no Settled claim).
+
+**Not verified:** the two Mermaid diagrams. Automatic checking was blocked by a permission check; to verify on GitHub after pushing.
+
+**My review:** _(add here)_
