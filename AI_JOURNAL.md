@@ -267,6 +267,40 @@ Tests: 52 backend, 2 frontend, all passing.
 
 **AI checked the README against the running system:** Swagger, OpenAPI and health URLs all return 200; the endpoint table matches the 14 endpoints in the generated OpenAPI spec (the dev-only user list is left out on purpose); `npm start` uses the proxy; the reset command matches the compose volume. It corrected one inaccurate line ("one claim in each status": the seed has no Settled claim).
 
-**Not verified:** the two Mermaid diagrams. Automatic checking was blocked by a permission check; to verify on GitHub after pushing.
+**Mermaid diagrams:** automatic checking before pushing was blocked by a permission check. ✅ **Verified on GitHub after pushing:** both the lifecycle and the architecture diagram render correctly, with no raw diagram text or errors on the page.
+
+**My review:** _(add here)_
+
+---
+
+## Entry 11: Kafka events, Part 1 (outbox, audit log, notifications)
+**Asked:** Use Kafka, which the brief asks for ("REST/HTTP and Kafka. You decide what uses which"). The AI asked two rounds of questions, showed a plan with its proposals marked ❓ (K1–K12, F1–F3), and stopped mid-build to ask about a database migration problem.
+
+**My decisions:**
+| Question | Chose |
+|----------|-------|
+| What Kafka is used for | ✅ All three: claimant notifications, dashboard read model, audit log |
+| Publishing | ✅ Transactional outbox (event saved in the same transaction as the change) |
+| Topics | ✅ One topic `claim-events`, keyed by claim id |
+| Format | ✅ JSON |
+| Notification delivery | ✅ Bell with unread count, refreshed on load/navigation (no live push) |
+| Notify on | ❌ **Every status change** (overrode the AI's "only what needs attention") |
+| Read model scope | ✅ Liability exposure only |
+| Delivery | ✅ Two parts with a review between (this is Part 1; the exposure read model is Part 2) |
+| Plan proposals K1–K12, F1–F3 | ✅ Approved, with one change: ⚠️ **K8: no notifications for the claimant's own actions** (submitting, answering) |
+| Mid-build: migration ordering | ✅ New tables as V2 and a one-time reset of my local database (the alternatives were Flyway out-of-order mode, or numbering it V101) |
+
+**AI built:**
+- `Claim` records an event on each change (after its effects, so the event carries the final reserve); `OutboxWriter` saves events in the same transaction; `OutboxRelay` publishes every second, in order, and marks rows published only after Kafka confirms.
+- Consumers in the same service: the audit log (`claim_event_log`, which closes the S9 reserve-audit gap) and notifications (`notification`); duplicates ignored by event id; 3 retries, then the dead-letter topic.
+- Notification API (list, mark read, mark all read) and a bell in the top bar for claimants; fixed the icon font (the cause of the invisible "+" icon in an earlier milestone).
+- Tests: 101 backend. New: 5 domain event tests, 3 notification-rule tests, 1 event-format test, and 4 end-to-end tests with real Kafka (5 outbox rows all published → 5 audit entries → exactly 2 notifications; a re-sent duplicate changes nothing; a rejected action writes no event; marking read).
+
+**AI mistakes found and how I decided:**
+1. **Test mistake:** the end-to-end test matched the stored JSON as text, but Postgres JSONB reformats it (spaces, number scale). The code was correct. I asked for options: ✅ **kept "read the fields and compare as numbers"** (rejected: storing the JSON as text, which changes the production design to suit a test; and whole-object comparison, which is brittle).
+2. **Related inconsistency the test exposed:** event amounts mixed formats (`2000.00` from the database, `1500` from a request). ✅ **Normalised every event amount to 2 decimals**, with a test.
+3. **Badge:** Material 3's "small" badge is a dot without a number; the plan said "unread count". Corrected during the browser check.
+
+**Verified in the browser** (after my database reset): Priya picks up CLM-000001 → outbox row published → audit log entry → notification. Alice's bell shows "1" and "Priya Nair picked up CLM-000001"; clicking it opens the claim and marks it read. A reserve revision appears in the audit log (before/after, who) but creates no notification.
 
 **My review:** _(add here)_
