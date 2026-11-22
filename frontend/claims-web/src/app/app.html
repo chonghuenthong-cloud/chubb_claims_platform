@@ -2,6 +2,8 @@
   <span class="app-name">Claims Platform</span>
   <span class="spacer"></span>
   @if (currentUser.user(); as user) {
+    <!-- Claimants only: staff don't receive notifications -->
+    @if (user.role === 'CLAIMANT') { <app-notification-bell /> }
     <mat-form-field class="viewing-as" appearance="outline" subscriptSizing="dynamic">
       <mat-label>Viewing as</mat-label>
       <mat-select [value]="user.id" (valueChange)="viewAs($event)">

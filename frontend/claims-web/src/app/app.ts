@@ -4,6 +4,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSelectModule } from '@angular/material/select';
 import { CurrentUserService } from './core/current-user.service';
 import { homeFor } from './core/role.guard';
+import { NotificationBell } from './core/notification-bell';
 
 /**
  * App shell: top bar with the "Viewing as" picker.
@@ -11,7 +12,7 @@ import { homeFor } from './core/role.guard';
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, MatToolbarModule, MatSelectModule],
+  imports: [RouterOutlet, MatToolbarModule, MatSelectModule, NotificationBell],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
