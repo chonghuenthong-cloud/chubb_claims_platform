@@ -1,16 +1,7 @@
-// Title on the left, filter on the right
+// Filter above the table; the "Work queue" tab already names the page
 .header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
   margin-bottom: 16px;
-}
-
-h1 {
-  font: var(--mat-sys-headline-small);
-  margin: 0;
 }
 
 .clickable {

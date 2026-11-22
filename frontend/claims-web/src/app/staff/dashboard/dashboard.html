@@ -1,0 +1,94 @@
+@if (data(); as d) {
+
+  <!-- Headline cards: the queue, then one exposure card per currency -->
+  <div class="cards">
+    <section class="card">
+      <h2>Unassigned</h2>
+      <p class="figure">{{ d.unassigned.count }}</p>
+      @if (d.unassigned.count) {
+        <p class="sub">Oldest waiting {{ oldestWaitHours() | duration }}</p>
+      }
+    </section>
+
+    @for (e of d.exposure; track e.currency) {
+      <section class="card">
+        <h2>Exposure · {{ e.currency }}</h2>
+        <p class="figure">{{ e.total | currency: e.currency : 'code' }}</p>
+        <div class="breakdowns">
+          <table>
+            <tr><th>Market</th><th></th></tr>
+            @for (b of e.byMarket; track b.key) {
+              <tr><td>{{ b.key }}</td><td class="numeric">{{ b.amount | currency: e.currency : 'code' }}</td></tr>
+            }
+          </table>
+          <table>
+            <tr><th>Product</th><th></th></tr>
+            @for (b of e.byProduct; track b.key) {
+              <tr><td>{{ productLabel(b.key) }}</td><td class="numeric">{{ b.amount | currency: e.currency : 'code' }}</td></tr>
+            }
+          </table>
+        </div>
+      </section>
+    }
+  </div>
+
+  <h2 class="section-title">Workload</h2>
+  <table mat-table [dataSource]="d.workload" class="mat-elevation-z1">
+    <ng-container matColumnDef="officer">
+      <th mat-header-cell *matHeaderCellDef>Officer</th>
+      <td mat-cell *matCellDef="let w">{{ w.officerName }}</td>
+    </ng-container>
+    <ng-container matColumnDef="underReview">
+      <th mat-header-cell *matHeaderCellDef class="numeric">Under review</th>
+      <td mat-cell *matCellDef="let w" class="numeric">{{ w.underReview }}</td>
+    </ng-container>
+    <ng-container matColumnDef="awaitingInfo">
+      <th mat-header-cell *matHeaderCellDef class="numeric">Awaiting info</th>
+      <td mat-cell *matCellDef="let w" class="numeric">{{ w.awaitingInfo }}</td>
+    </ng-container>
+    <ng-container matColumnDef="approvedNotSettled">
+      <th mat-header-cell *matHeaderCellDef class="numeric">Approved, not settled</th>
+      <td mat-cell *matCellDef="let w" class="numeric">{{ w.approvedNotSettled }}</td>
+    </ng-container>
+    <ng-container matColumnDef="totalOpen">
+      <th mat-header-cell *matHeaderCellDef class="numeric">Total open</th>
+      <td mat-cell *matCellDef="let w" class="numeric total">{{ w.totalOpen }}</td>
+    </ng-container>
+    <tr mat-header-row *matHeaderRowDef="workloadColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: workloadColumns"></tr>
+  </table>
+
+  <h2 class="section-title">Performance <span class="hint">all time · averages</span></h2>
+  <table mat-table [dataSource]="d.performance" class="mat-elevation-z1">
+    <ng-container matColumnDef="officer">
+      <th mat-header-cell *matHeaderCellDef>Officer</th>
+      <td mat-cell *matCellDef="let p">{{ p.officerName }}</td>
+    </ng-container>
+    <ng-container matColumnDef="approved">
+      <th mat-header-cell *matHeaderCellDef class="numeric">Approved</th>
+      <td mat-cell *matCellDef="let p" class="numeric">{{ p.approved }}</td>
+    </ng-container>
+    <ng-container matColumnDef="rejected">
+      <th mat-header-cell *matHeaderCellDef class="numeric">Rejected</th>
+      <td mat-cell *matCellDef="let p" class="numeric">{{ p.rejected }}</td>
+    </ng-container>
+    <ng-container matColumnDef="settled">
+      <th mat-header-cell *matHeaderCellDef class="numeric">Settled</th>
+      <td mat-cell *matCellDef="let p" class="numeric">{{ p.settled }}</td>
+    </ng-container>
+    <ng-container matColumnDef="submissionToPickUp">
+      <th mat-header-cell *matHeaderCellDef class="numeric">Submission → pick-up</th>
+      <td mat-cell *matCellDef="let p" class="numeric">{{ p.avgSubmissionToPickUpHours | duration }}</td>
+    </ng-container>
+    <ng-container matColumnDef="pickUpToDecision">
+      <th mat-header-cell *matHeaderCellDef class="numeric">Pick-up → decision</th>
+      <td mat-cell *matCellDef="let p" class="numeric">{{ p.avgPickUpToDecisionHours | duration }}</td>
+    </ng-container>
+    <ng-container matColumnDef="approvalToSettlement">
+      <th mat-header-cell *matHeaderCellDef class="numeric">Approval → settlement</th>
+      <td mat-cell *matCellDef="let p" class="numeric">{{ p.avgApprovalToSettlementHours | duration }}</td>
+    </ng-container>
+    <tr mat-header-row *matHeaderRowDef="performanceColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: performanceColumns"></tr>
+  </table>
+}

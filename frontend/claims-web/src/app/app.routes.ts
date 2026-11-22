@@ -11,7 +11,15 @@ export const routes: Routes = [
     path: 'staff',
     canActivate: [roleGuard('STAFF')],
     children: [
-      { path: '', loadComponent: () => import('./staff/work-queue/work-queue').then((m) => m.WorkQueue) },
+      {
+        // Tab bar around the two staff overview pages; the claim page has its own back link instead
+        path: '',
+        loadComponent: () => import('./staff/staff-tabs').then((m) => m.StaffTabs),
+        children: [
+          { path: '', loadComponent: () => import('./staff/work-queue/work-queue').then((m) => m.WorkQueue) },
+          { path: 'dashboard', loadComponent: () => import('./staff/dashboard/dashboard').then((m) => m.Dashboard) },
+        ],
+      },
       {
         path: 'claims/:id',
         loadComponent: () => import('./staff/claim-detail/claim-detail').then((m) => m.ClaimDetail),

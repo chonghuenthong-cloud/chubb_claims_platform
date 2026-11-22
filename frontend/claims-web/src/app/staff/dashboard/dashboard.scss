@@ -1,0 +1,77 @@
+// Headline cards wrap onto new rows on narrow screens
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.card {
+  background: var(--mat-sys-surface-container-lowest);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+h2 {
+  font: var(--mat-sys-title-small);
+  color: var(--mat-sys-on-surface-variant);
+  margin: 0 0 8px;
+}
+
+.figure {
+  font: var(--mat-sys-headline-medium);
+  margin: 0;
+}
+
+.sub {
+  color: var(--mat-sys-on-surface-variant);
+  margin: 4px 0 0;
+}
+
+// Market and product tables side by side under the exposure total
+.breakdowns {
+  display: flex;
+  gap: 24px;
+  margin-top: 12px;
+
+  table {
+    border-collapse: collapse;
+    font: var(--mat-sys-body-small);
+  }
+
+  th {
+    text-align: left;
+    color: var(--mat-sys-on-surface-variant);
+    font-weight: 500;
+    padding-bottom: 4px;
+  }
+
+  td {
+    padding: 2px 12px 2px 0;
+  }
+}
+
+.section-title {
+  font: var(--mat-sys-title-medium);
+  color: var(--mat-sys-on-surface);
+  margin: 24px 0 12px;
+}
+
+.hint {
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+  margin-left: 8px;
+}
+
+table[mat-table] {
+  width: 100%;
+}
+
+.numeric {
+  text-align: right;
+}
+
+.total {
+  font-weight: 500;
+}
