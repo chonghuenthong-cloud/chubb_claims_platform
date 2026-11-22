@@ -4,14 +4,14 @@ A motor and property claims platform for six APAC markets, built as a take-home 
 
 Claimants report incidents, track their claims, answer questions and receive decisions. Claims staff pick up claims, assess them, approve and settle or reject them, and see their team's workload, performance and liability exposure. Both user types use the same Angular application.
 
-**Stack:** Java 21 · Spring Boot 4.1 · PostgreSQL 17 · Flyway · Angular 22 · Angular Material · Kafka 4.1 (planned, see [Architecture](#architecture)) · Docker Compose · Testcontainers
+**Stack:** Java 21 · Spring Boot 4.1 · PostgreSQL 17 · Flyway · Kafka 4.1 · Angular 22 · Angular Material · Docker Compose · Testcontainers
 
 ---
 
 ## Quick start
 
 ### Prerequisites
-- **Docker Desktop** (runs Postgres and Kafka, and the backend's integration tests)
+- **Docker Desktop** (runs Postgres and Kafka, and the backend's integration tests). Start it before the backend: the backend publishes claim events to Kafka.
 - **Java 21** (Maven is not needed: the project includes the Maven wrapper)
 - **Node.js** (current LTS) with npm
 
@@ -74,6 +74,8 @@ The seed data has five claims, one in each status except *Settled*, so every scr
 4. **Answer:** switch to **Alice**, open the claim from *My claims*, and answer the question. The claim returns to *Under review*.
 5. **Decide:** switch to **Priya**. *Approve* an amount (up to the coverage limit), then *Mark as settled*, or *Reject* with a reason. Switch back to **Alice** to see the decision.
 
+Along the way, Alice's **bell** (top bar) shows a notification for each of Priya's status changes. These are created through Kafka: claim change → outbox → `claim-events` topic → notification consumer.
+
 Then open **Team dashboard** as Priya to see workload, performance and liability exposure.
 
 ---
@@ -87,6 +89,7 @@ Then open **Team dashboard** as Priya to see workload, performance and liability
 | Track their claim | *My claims* list and a claim page with details, timeline (who changed what, when) and questions |
 | Provide additional information when asked | Answer box on the claim page while a question is open |
 | Receive decisions | Decision banner: approved amount, settled amount, or rejection reason |
+| Be kept informed | Bell with unread count: a notification for every status change made by staff (not for the claimant's own actions), created asynchronously via Kafka |
 
 Claimants never receive internal figures: the API leaves out the reserve and the officer's internal id.
 
@@ -126,17 +129,25 @@ flowchart LR
         DASH["Dashboard<br/>SQL aggregates"]
     end
 
-    DB[("PostgreSQL<br/>schema by Flyway")]
-    K[["Kafka<br/>(planned)"]]
-    C["Consumers<br/>notifications, dashboard read model<br/>(planned)"]
+    DB[("PostgreSQL<br/>claims + outbox")]
+    R["Outbox relay<br/>every 1 s"]
+    K[["Kafka<br/>topic claim-events"]]
+    AUD["Audit log consumer"]
+    NOT["Notification consumer"]
+    EXP["Exposure read model<br/>(planned, Part 2)"]
 
     UI -- "REST / JSON" --> API
     API --> DOM
     API --> DASH
-    DOM --> DB
+    DOM -- "change + event,<br/>one transaction" --> DB
     DASH --> DB
-    DOM -. "claim events (planned)" .-> K
-    K -.-> C
+    DB --> R
+    R -- "publish" --> K
+    K --> AUD
+    K --> NOT
+    K -.-> EXP
+    AUD --> DB
+    NOT --> DB
 ```
 
 **One service, split into modules** (`claim`, `policy`, `user`, `dashboard`). In a 2–5 hour sprint, each extra service adds a build, configuration and a failure point; package boundaries keep the seams visible, so a module can be extracted later.
@@ -144,10 +155,12 @@ flowchart LR
 **REST vs Kafka**
 | | Used for | Why |
 |---|---|---|
-| **REST** (built) | Everything a user waits on: submitting a claim, staff actions, lists, the dashboard | The user needs an immediate answer: validation errors, the new claim number, the updated status |
-| **Kafka** (planned, not yet wired) | Domain events after a change (claim submitted, status changed, decision made), consumed for claimant notifications and a dashboard read model | Work that can lag by a second without harm. A slow or failing consumer can't block a claim submission |
+| **REST** | Everything a user waits on: submitting a claim, staff actions, lists, the dashboard | The user needs an immediate answer: validation errors, the new claim number, the updated status |
+| **Kafka** | What happens *because* of a change: the **audit log** and **claimant notifications** (built); the exposure read model (planned, Part 2) | Work that can lag by a second without harm. A slow or failing consumer can't block a claim submission |
 
-Kafka runs in Docker today but carries no messages yet. Until then, claimants see changes when they open the app, and the dashboard is calculated live with SQL (fine at this scale).
+**How an event travels:** the claim change and its event are saved in **one database transaction** (a *transactional outbox*), so an event exists only if the change committed. A relay publishes outbox rows to the `claim-events` topic (key = claim id, so each claim's events stay in order) and marks them sent once Kafka confirms. If Kafka is down, claims keep working and events wait. Delivery is *at least once*; consumers ignore duplicates by event id. A failing event is retried 3 times, then moved to `claim-events.DLT`.
+
+The dashboard is still calculated live with SQL (fine at this scale).
 
 **API contract:** code-first. The backend generates the OpenAPI spec (`/v3/api-docs`, browsable in Swagger UI), and the frontend's types mirror it.
 
@@ -160,6 +173,7 @@ Kafka runs in Docker today but carries no messages yet. Until then, claimants se
 | Claimant | `POST /api/claims` | Report an incident |
 | Claimant | `GET /api/me/claims`, `GET /api/me/claims/{id}` | Own claims; one claim with decision, timeline, questions |
 | Claimant | `POST /api/claims/{id}/answer` | Answer the open question |
+| Claimant | `GET /api/me/notifications` · `POST …/{id}/read` · `POST …/read-all` | Bell: notifications and unread count |
 | Staff | `GET /api/claims?filter=ALL\|UNASSIGNED\|MINE` | Work queue |
 | Staff | `GET /api/claims/{id}` | One claim in full, including the reserve |
 | Staff | `POST /api/claims/{id}/pick-up` · `PUT …/reserve` · `POST …/request-info` · `…/approve` · `…/reject` · `…/settle` | Claim actions |
@@ -172,7 +186,7 @@ The full list is in Swagger UI.
 ## Testing
 
 ```bash
-# Backend: 88 tests (needs Docker running, for Testcontainers)
+# Backend: 101 tests (needs Docker running: Testcontainers starts Postgres and Kafka)
 cd backend/claims-service
 ./mvnw test                   # Windows: .\mvnw.cmd test
 
@@ -181,7 +195,7 @@ cd frontend/claims-web
 npx ng test --watch=false
 ```
 
-The backend tests include unit tests for the claim lifecycle and validation rules, and **integration tests against a real PostgreSQL** started automatically in Docker. These cover every endpoint, the role and ownership checks, that claimant responses never contain internal figures, and dashboard figures checked against hand-calculated values.
+The backend tests include unit tests for the claim lifecycle, validation rules and notification rules, and **integration tests against real PostgreSQL and Kafka** started automatically in Docker. These cover every endpoint, the role and ownership checks, that claimant responses never contain internal figures, dashboard figures checked against hand-calculated values, and the full event flow (outbox → Kafka → audit log and notifications, duplicates ignored, no event for a rejected action).
 
 ---
 
@@ -193,6 +207,8 @@ The backend tests include unit tests for the claim lifecycle and validation rule
 │       ├── policy/               policies
 │       ├── user/                 users and the temporary identity stub
 │       ├── dashboard/            team dashboard queries
+│       ├── events/               outbox, relay, Kafka topics, consumers
+│       ├── notification/         claimant notifications API
 │       └── web/                  error handling
 │   └── src/main/resources/db/
 │       ├── migration/            Flyway schema
@@ -202,7 +218,7 @@ The backend tests include unit tests for the claim lifecycle and validation rule
 │       ├── claimant/             My claims, report form, claim page
 │       ├── staff/                work queue, claim page, dashboard
 │       ├── claims/               shared claim types and API calls
-│       └── core/                 current user, route guards
+│       └── core/                 current user, route guards, notification bell
 ├── docs/decisions.md             decisions, business rules, known gaps
 ├── AI_JOURNAL.md                 how AI was used: asked, accepted, challenged, overridden
 └── docker-compose.yml            Postgres + Kafka
@@ -215,4 +231,4 @@ The backend tests include unit tests for the claim lifecycle and validation rule
 - **[AI_JOURNAL.md](AI_JOURNAL.md):** a running log of what I asked the AI, what I accepted, challenged and overrode, including bugs the tests caught.
 
 ### Main known gaps
-Kafka events not yet wired · temporary `X-User-Id` identity instead of JWT · no pagination · reserve changes not audited · no reassignment or appeal flow · dashboard has no time filter. Details and reasons are in [docs/decisions.md](docs/decisions.md).
+Exposure read model (Kafka Part 2) not yet built · temporary `X-User-Id` identity instead of JWT · no live push for notifications · no pagination · no reassignment or appeal flow · dashboard has no time filter. Details and reasons are in [docs/decisions.md](docs/decisions.md).
