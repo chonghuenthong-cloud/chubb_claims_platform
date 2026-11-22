@@ -268,7 +268,7 @@ Tests: 52 backend, 2 frontend, all passing.
 
 **Mermaid diagrams:** automatic checking before pushing was blocked by a permission check. ✅ **Verified on GitHub after pushing:** both the lifecycle and the architecture diagram render correctly, with no raw diagram text or errors on the page.
 
-**My review:** I did the README before Kafka because a reviewer who can't start the app may never look at the code."
+**My review:** I did the README before Kafka because a reviewer who can't start the app may never look at the code.
 
 ---
 
@@ -301,5 +301,7 @@ Tests: 52 backend, 2 frontend, all passing.
 3. **Badge:** Material 3's "small" badge is a dot without a number; the plan said "unread count". Corrected during the browser check.
 
 **Verified in the browser** (after my database reset): Priya picks up CLM-000001 → outbox row published → audit log entry → notification. Alice's bell shows "1" and "Priya Nair picked up CLM-000001"; clicking it opens the claim and marks it read. A reserve revision appears in the audit log (before/after, who) but creates no notification.
+
+**Part 2 decision:** ❌ **Skipped Kafka Part 2 (the exposure read model) because of the time cap.** I was close to the brief's 5-hour limit, and live SQL is exact at this scale. Documented as "not built (time cap)" in the README and decisions.md, with how it would be done (running totals from claim events, which already carry reserve before/after).
 
 **My review:** I wanted claimants notified of every change so they always know where their claim is, but not about their own actions, which tell them nothing new. The test mistake showed me that a test should check meaning, not formatting.
