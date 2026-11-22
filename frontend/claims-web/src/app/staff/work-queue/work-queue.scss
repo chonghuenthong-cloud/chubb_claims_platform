@@ -1,6 +1,28 @@
+// Title on the left, filter on the right
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
 h1 {
   font: var(--mat-sys-headline-small);
-  margin: 0 0 16px;
+  margin: 0;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover {
+  background: var(--mat-sys-surface-container);
+}
+
+.empty {
+  color: var(--mat-sys-on-surface-variant);
 }
 
 table {

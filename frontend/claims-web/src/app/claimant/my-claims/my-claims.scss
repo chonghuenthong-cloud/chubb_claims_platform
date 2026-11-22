@@ -26,3 +26,11 @@ table {
 .empty {
   color: var(--mat-sys-on-surface-variant);
 }
+
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover {
+  background: var(--mat-sys-surface-container);
+}

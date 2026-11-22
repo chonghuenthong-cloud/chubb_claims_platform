@@ -1,0 +1,82 @@
+<a mat-button routerLink="/staff" class="back">← Work queue</a>
+
+@if (claim(); as c) {
+  @let s = c.summary;
+
+  <div class="header">
+    <h1>{{ s.claimNumber }} <app-status-pill [status]="s.status" /></h1>
+    <div class="actions">
+      @if (actions().pickUp) { <button mat-flat-button (click)="pickUp()">Pick up</button> }
+      @if (actions().reserve) { <button mat-stroked-button (click)="reviseReserve()">Revise reserve</button> }
+      @if (actions().requestInfo) { <button mat-stroked-button (click)="requestInfo()">Request info</button> }
+      @if (actions().decide) {
+        <button mat-stroked-button (click)="reject()">Reject</button>
+        <button mat-flat-button (click)="approve()">Approve</button>
+      }
+      @if (actions().settle) { <button mat-flat-button (click)="settle()">Mark as settled</button> }
+    </div>
+  </div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Claim</h2>
+      <dl>
+        <dt>Claimant</dt><dd>{{ s.claimantName }}</dd>
+        <dt>Policy</dt><dd>{{ s.policyNumber }} · {{ s.productType === 'MOTOR' ? 'Motor' : 'Property' }} · {{ s.market }}</dd>
+        <dt>Incident date</dt><dd>{{ s.incidentDate | date: 'd MMM y' }}</dd>
+        <dt>Submitted</dt><dd>{{ s.submittedAt | date: 'd MMM y, HH:mm' }}</dd>
+        <dt>Officer</dt><dd [class.muted]="!s.assignedOfficerName">{{ s.assignedOfficerName ?? 'Unassigned' }}</dd>
+      </dl>
+    </section>
+
+    <section class="card">
+      <h2>Amounts</h2>
+      <dl>
+        <dt>Estimated loss</dt><dd>{{ s.estimatedLoss | currency: s.currency : 'code' }}</dd>
+        <dt>Reserve</dt><dd>{{ s.reserveAmount | currency: s.currency : 'code' }}</dd>
+        <dt>Coverage limit</dt><dd>{{ c.coverageLimit | currency: s.currency : 'code' }}</dd>
+        @if (c.approvedAmount != null) {
+          <dt>Approved</dt><dd>{{ c.approvedAmount | currency: s.currency : 'code' }}</dd>
+        }
+      </dl>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>What happened</h2>
+    <p class="text">{{ c.incidentDescription }}</p>
+    @if (c.rejectionReason) {
+      <h2>Rejection reason</h2>
+      <p class="text">{{ c.rejectionReason }}</p>
+    }
+  </section>
+
+  @if (c.informationRequests.length) {
+    <section class="card">
+      <h2>Information requests</h2>
+      @for (r of c.informationRequests; track r.id) {
+        <div class="qa">
+          <p class="text"><strong>{{ r.requestedByName }}</strong> · {{ r.requestedAt | date: 'd MMM y, HH:mm' }}<br>{{ r.question }}</p>
+          @if (r.response) {
+            <p class="text answer"><strong>{{ s.claimantName }}</strong> · {{ r.respondedAt | date: 'd MMM y, HH:mm' }}<br>{{ r.response }}</p>
+          } @else {
+            <p class="muted">No answer yet</p>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  <section class="card">
+    <h2>History</h2>
+    <ol class="history">
+      @for (h of c.history; track $index) {
+        <li>
+          <app-status-pill [status]="h.toStatus" />
+          <span>{{ h.changedByName }} · {{ h.changedAt | date: 'd MMM y, HH:mm' }}</span>
+          @if (h.note) { <p class="text note">{{ h.note }}</p> }
+        </li>
+      }
+    </ol>
+  </section>
+}

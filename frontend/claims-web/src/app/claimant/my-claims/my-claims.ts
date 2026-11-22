@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { filter, switchMap } from 'rxjs';
 import { MatTableModule } from '@angular/material/table';
@@ -8,6 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { ClaimService } from '../../claims/claim.service';
 import { StatusPill } from '../../claims/status-pill';
 import { CurrentUserService } from '../../core/current-user.service';
+import { ClaimSummary } from '../../claims/claim.model';
 
 /** Claimant view: their own claims, newest first, and the way in to report a new incident. */
 @Component({
@@ -28,4 +29,13 @@ export class MyClaims {
   );
 
   protected readonly columns = ['claimNumber', 'product', 'status', 'estimate', 'submitted'];
+
+  private readonly router = inject(Router);
+
+  /** Opens the answer page for a claim that is waiting on the claimant. */
+  protected open(claim: ClaimSummary): void {
+    if (claim.status === 'AWAITING_INFO') {
+      this.router.navigate(['/claimant/claims', claim.id]);
+    }
+  }
 }

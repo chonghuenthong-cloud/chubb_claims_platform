@@ -1,6 +1,14 @@
-<h1>Work queue</h1>
+<div class="header">
+  <h1>Work queue</h1>
+  <mat-button-toggle-group [value]="filter()" (change)="filter.set($event.value)" hideSingleSelectionIndicator>
+    <mat-button-toggle value="ALL">All</mat-button-toggle>
+    <mat-button-toggle value="UNASSIGNED">Unassigned</mat-button-toggle>
+    <mat-button-toggle value="MINE">Assigned to me</mat-button-toggle>
+  </mat-button-toggle-group>
+</div>
 
-<table mat-table [dataSource]="claims()" class="mat-elevation-z1">
+@if (claims(); as claims) {
+<table mat-table [dataSource]="claims" class="mat-elevation-z1">
 
   <ng-container matColumnDef="claimNumber">
     <th mat-header-cell *matHeaderCellDef>Claim</th>
@@ -47,5 +55,10 @@
   </ng-container>
 
   <tr mat-header-row *matHeaderRowDef="columns"></tr>
-  <tr mat-row *matRowDef="let row; columns: columns"></tr>
+  <tr mat-row *matRowDef="let row; columns: columns" class="clickable" (click)="open(row)"></tr>
 </table>
+
+@if (!claims.length) {
+  <p class="empty">No claims.</p>
+}
+}

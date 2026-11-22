@@ -23,6 +23,7 @@ export interface ClaimSummary {
   productType: ProductType;
   market: string;
   status: ClaimStatus;
+  assignedOfficerId: string | null;
   assignedOfficerName: string | null;
   incidentDate: string; // YYYY-MM-DD
   estimatedLoss: number;
@@ -30,6 +31,37 @@ export interface ClaimSummary {
   currency: string;
   submittedAt: string; // ISO 8601 instant
 }
+
+/** One claim in full (GET /api/claims/{id} and every action's response). */
+export interface ClaimDetail {
+  summary: ClaimSummary;
+  incidentDescription: string;
+  coverageLimit: number;
+  approvedAmount: number | null;
+  rejectionReason: string | null;
+  history: StatusChange[]; // oldest first
+  informationRequests: InfoRequest[]; // oldest first
+}
+
+export interface StatusChange {
+  fromStatus: ClaimStatus | null;
+  toStatus: ClaimStatus;
+  changedByName: string;
+  note: string | null;
+  changedAt: string;
+}
+
+export interface InfoRequest {
+  id: string;
+  question: string;
+  requestedByName: string;
+  requestedAt: string;
+  response: string | null;
+  respondedAt: string | null;
+}
+
+/** Staff work queue filters (GET /api/claims?filter=...). */
+export type QueueFilter = 'ALL' | 'UNASSIGNED' | 'MINE';
 
 /** A policy the claimant can claim against. */
 export interface Policy {

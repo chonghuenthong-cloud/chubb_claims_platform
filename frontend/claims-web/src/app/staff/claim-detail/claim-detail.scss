@@ -1,0 +1,112 @@
+.back {
+  margin: -8px 0 8px -12px;
+}
+
+// Claim number and status on the left, actions on the right
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+h1 {
+  font: var(--mat-sys-headline-small);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+// Two cards side by side on wide screens, stacked on narrow ones
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: var(--mat-sys-surface-container-lowest);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+h2 {
+  font: var(--mat-sys-title-small);
+  color: var(--mat-sys-on-surface-variant);
+  margin: 0 0 12px;
+}
+
+// Label / value pairs
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 24px;
+  margin: 0;
+}
+
+dt {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+dd {
+  margin: 0;
+}
+
+.text {
+  margin: 0 0 12px;
+  white-space: pre-line;
+}
+
+.muted {
+  color: var(--mat-sys-on-surface-variant);
+  font-style: italic;
+  margin: 0 0 12px;
+}
+
+.qa + .qa {
+  border-top: 1px solid var(--mat-sys-outline-variant);
+  padding-top: 12px;
+}
+
+.answer {
+  padding-left: 16px;
+  border-left: 3px solid var(--mat-sys-primary);
+}
+
+// Timeline, oldest first
+.history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+  }
+
+  li + li {
+    border-top: 1px solid var(--mat-sys-outline-variant);
+  }
+
+  span {
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  .note {
+    flex-basis: 100%;
+    margin: 0;
+  }
+}
