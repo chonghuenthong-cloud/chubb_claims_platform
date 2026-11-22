@@ -1,5 +1,6 @@
 package com.chubb.claims.claim;
 
+import com.chubb.claims.events.OutboxWriter;
 import com.chubb.claims.policy.Policy;
 import com.chubb.claims.policy.PolicyRepository;
 import com.chubb.claims.user.AppUser;
@@ -19,10 +20,12 @@ public class ClaimService {
 
     private final ClaimRepository claims;
     private final PolicyRepository policies;
+    private final OutboxWriter outbox;
 
-    public ClaimService(ClaimRepository claims, PolicyRepository policies) {
+    public ClaimService(ClaimRepository claims, PolicyRepository policies, OutboxWriter outbox) {
         this.claims = claims;
         this.policies = policies;
+        this.outbox = outbox;
     }
 
     /**
@@ -48,7 +51,9 @@ public class ClaimService {
 
         // Flush now so database-generated timestamps are set before the response is built
         // saveAndFlush is right here: the claim is new, so it is persisted (not merged)
-        return ClaimantClaimSummary.from(claims.saveAndFlush(claim));
+        Claim saved = claims.saveAndFlush(claim);
+        outbox.store(saved);   // CLAIM_SUBMITTED, in this same transaction
+        return ClaimantClaimSummary.from(saved);
     }
 
     /** Staff: any claim in full, including internal figures. */
@@ -119,6 +124,7 @@ public class ClaimService {
         Claim claim = loadOwn(claimant, claimId);
         claim.answerInformationRequest(claimant, response.trim());
         claims.flush();
+        outbox.store(claim);
         return ClaimantClaimDetail.from(claim);
     }
 
@@ -161,6 +167,7 @@ public class ClaimService {
      */
     private ClaimDetailResponse save(Claim claim) {
         claims.flush();
+        outbox.store(claim);   // the action's events, in this same transaction
         return ClaimDetailResponse.from(claim);
     }
 }

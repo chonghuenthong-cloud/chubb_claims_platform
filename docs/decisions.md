@@ -8,7 +8,7 @@ Short records of the key decisions: what was chosen, why, and what was given up.
 
 ## D2. One service (modular monolith), Kafka consumers in-process
 - **Why:** In a 2–5 hour sprint, every extra service adds a build, config, Docker image and failure mode. Package boundaries (`claim`, `policy`, `user`, `events`, `insights`, `notification`) keep the seams visible, so a module can be extracted later.
-- **Kafka still does real work:** state changes publish domain events; consumers build the workload/exposure read model and claimant notifications. A slow or failing consumer cannot block a claim submission.
+- **Kafka does real work:** every claim change publishes a domain event (via a transactional outbox); in-process consumers keep an audit log and create claimant notifications (built), and will keep the exposure read model (Part 2, planned). A slow or failing consumer cannot block a claim submission. See **Events and Kafka** below.
 - **Trade-off:** One deployable means one scaling unit. Extraction is the documented next step.
 
 ## D3. PostgreSQL in Docker, schema managed by Flyway
@@ -120,19 +120,41 @@ All figures are **all-time** and calculated **live with SQL** on every request (
 
 **Trade-off: live SQL vs a Kafka read model.** Live queries are always exact and add no moving parts, which suits this scale. At production volume (six markets, many officers), the dashboard would read from summary tables kept up to date by Kafka consumers of claim events, the design planned in D2. (Eunice)
 
+### Events and Kafka (Part 1 built; Part 2, the exposure read model, planned)
+**REST vs Kafka, as built:** REST for everything a user waits on (submit, staff actions, lists, dashboard). Kafka for what happens *because* of a change and can lag by a second: the audit log and claimant notifications.
+
+| Rule | Code | Test | Decided |
+|------|------|------|---------|
+| Event types: `CLAIM_SUBMITTED`, `CLAIM_STATUS_CHANGED` (from/to; covers pick-up, info requested, answered, approved, rejected, settled), `RESERVE_REVISED` | `claim/ClaimEventType` | `ClaimTest` | Eunice (K1) |
+| The `Claim` records an event on every change, after the change's effects, so each event carries the final reserve; a failed action records nothing | `claim/Claim.transition`, `record` | `ClaimTest` | Eunice (K2) |
+| **Transactional outbox:** events are written to `outbox_event` in the SAME transaction as the change, so an event exists if and only if the change committed (no lost events if Kafka is down, no events for rolled-back changes) | `events/OutboxWriter` (requires an existing transaction) | `ClaimEventsIntegrationTest.rejectedActionWritesNoEvent` | Eunice |
+| Relay publishes unpublished rows every second, in order, waits for Kafka's confirmation, then marks them published; safe with several instances (`FOR UPDATE SKIP LOCKED`) | `events/OutboxRelay` | `ClaimEventsIntegrationTest` | Eunice (K3) |
+| One topic `claim-events`, 3 partitions, key = claim id (each claim's events stay in order) | `events/KafkaTopics` | | Eunice (K4) |
+| Event format: JSON, self-contained (claim, actor, from/to, note, currency/market/product, reserve before/after, approved amount); amounts always 2 decimals | `events/ClaimEvent` | `ClaimEventTest` | Eunice |
+| **At-least-once delivery:** an event may arrive twice; both consumers ignore an event id they've already stored | unique keys in `claim_event_log`, `notification` | `ClaimEventsIntegrationTest` (re-sends a processed event) | Eunice (K7) |
+| A failing event is retried 3 times (1 s apart), then moved to `claim-events.DLT`, so it can't block later events | `events/KafkaTopics.kafkaErrorHandler` | | Eunice (K9) |
+| **Audit log** (group `audit-log`): every event stored in append-only `claim_event_log`, including reserve revisions (who, before, after, when) | `events/AuditLogConsumer` | `ClaimEventsIntegrationTest` | Eunice (K5) |
+| **Notifications** (group `notifications`): every status change notifies the claimant, **except the claimant's own actions** (submitting, answering); reserve revisions are internal and never notify | `events/NotificationConsumer.messageFor` | `NotificationConsumerTest`, `ClaimEventsIntegrationTest` | Eunice (K8; "every status change" was her override of the AI's recommendation) |
+| Claimant sees notifications in a bell (unread count, latest 20, mark read / mark all read), refreshed on load and navigation; no live push | `notification/NotificationController`, `core/notification-bell.ts` | `ClaimEventsIntegrationTest` | Eunice (K10, F1–F2) |
+
+**Migration note:** the new tables are migration V2. Existing local databases (which had already run the demo data as V100) needed a one-time reset (`docker compose down -v`); fresh databases and tests apply V1 → V2 → V100 in order. (Eunice)
+
+**Not covered by events:** the demo seed data has no events (it's inserted directly), so the audit log and notifications start with the first change after startup.
+
 ### Known gaps in the rules
 - **Nothing links market to currency.** A Singapore policy could be stored in MYR. It is only correct today because the demo data was typed that way.
 - **One coverage limit per policy.** Real motor policies have separate limits (own damage, third-party property, and so on).
 
 ### Known technical gaps
 - **Lists are not paginated.** `GET /api/claims` and `GET /api/me/claims` return every matching claim in one response. Fine for demo data; at production volume the staff queue needs server-side paging. The queue filters were built in the staff milestone; paging was deferred again because the demo has only a few claims. (Eunice, R10, S14)
-- **Reserve changes are not audited.** The history table records status changes only, so a revised reserve keeps no record of who changed it, from what, or when. A reserve-change table is the fix. (Eunice, S9)
+- ~~Reserve changes are not audited.~~ **Closed** by the Kafka audit log: every `RESERVE_REVISED` event (who, before, after, when) is stored in `claim_event_log`. (Eunice, S9, K5)
 - **No reassignment.** If the assigned officer is away, nobody else can act on their claims. (Eunice: self pick-up only)
-- **Actions don't publish Kafka events yet.** Planned for the Kafka milestone. (Eunice, S15)
+- ~~Actions don't publish Kafka events yet.~~ **Closed** by Kafka Part 1. (Eunice, S15)
 - ~~Claimants can't see decisions yet.~~ **Closed** by the claimant tracking milestone: the claimant claim page shows the decision, timeline and questions. (Eunice, V9)
 - **Dashboard has no time filter.** All figures are all-time; a period filter (7 / 30 / 90 days) would suit managers better at real volume.
-- **Dashboard queries run on every page load.** Fine at this scale; would move to a Kafka-fed read model at production volume.
-- **No live updates for claimants.** A claimant sees a decision only when they open or reload the app. Push notifications are planned with Kafka.
+- **Dashboard queries run on every page load.** Fine at this scale. Kafka Part 2 (planned) moves liability exposure to a Kafka-fed read model; workload and performance stay on live SQL.
+- **No live push for claimants.** Notifications are created by Kafka within seconds, but the bell refreshes only on page load and navigation (decided). Live push (e.g. Server-Sent Events) would be the next step.
+- **No audit log screen.** The audit log is queryable in the database only.
 - **Stale screens aren't detected.** The UI doesn't send the claim version it loaded, so an officer acting on an old screen is only stopped by the status checks, not by a version mismatch. (Eunice, S12)
 
 ### Demo data (not rules)

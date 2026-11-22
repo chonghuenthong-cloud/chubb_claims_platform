@@ -185,6 +185,64 @@ class ClaimTest {
         });
     }
 
+    // --- Recorded events (saved to the outbox by ClaimService) ---
+
+    @Test
+    void submitRecordsSubmittedEventWithInitialReserve() {
+        Claim claim = submit("25000.00");
+        assertThat(claim.pullPendingEvents()).singleElement().satisfies(e -> {
+            assertThat(e.type()).isEqualTo(ClaimEventType.CLAIM_SUBMITTED);
+            assertThat(e.fromStatus()).isNull();
+            assertThat(e.toStatus()).isEqualTo(ClaimStatus.SUBMITTED);
+            assertThat(e.actor()).isSameAs(claimant);
+            assertThat(e.reserveBefore()).isEqualByComparingTo("0");
+            assertThat(e.reserveAfter()).isEqualByComparingTo("10000.00"); // capped at the limit
+        });
+    }
+
+    @Test
+    void statusChangeEventCarriesReserveAfterTheEffects() {
+        Claim claim = inReview();
+        claim.pullPendingEvents(); // ignore submit and pick-up
+        claim.approve(officer, new BigDecimal("3500.00"));
+        assertThat(claim.pullPendingEvents()).singleElement().satisfies(e -> {
+            assertThat(e.type()).isEqualTo(ClaimEventType.CLAIM_STATUS_CHANGED);
+            assertThat(e.fromStatus()).isEqualTo(ClaimStatus.UNDER_REVIEW);
+            assertThat(e.toStatus()).isEqualTo(ClaimStatus.APPROVED);
+            assertThat(e.reserveBefore()).isEqualByComparingTo("4000.00");
+            assertThat(e.reserveAfter()).isEqualByComparingTo("3500.00");
+        });
+    }
+
+    @Test
+    void reserveRevisionRecordsReserveRevisedEvent() {
+        Claim claim = inReview();
+        claim.pullPendingEvents();
+        claim.reviseReserve(officer, new BigDecimal("6000.00"));
+        assertThat(claim.pullPendingEvents()).singleElement().satisfies(e -> {
+            assertThat(e.type()).isEqualTo(ClaimEventType.RESERVE_REVISED);
+            assertThat(e.fromStatus()).isEqualTo(ClaimStatus.UNDER_REVIEW);
+            assertThat(e.toStatus()).isEqualTo(ClaimStatus.UNDER_REVIEW);
+            assertThat(e.reserveBefore()).isEqualByComparingTo("4000.00");
+            assertThat(e.reserveAfter()).isEqualByComparingTo("6000.00");
+        });
+    }
+
+    @Test
+    void failedActionRecordsNoEvent() {
+        Claim claim = inReview();
+        claim.pullPendingEvents();
+        assertThatThrownBy(() -> claim.approve(otherOfficer, new BigDecimal("100")));
+        assertThat(claim.pullPendingEvents()).isEmpty();
+    }
+
+    @Test
+    void pullingEventsClearsThem() {
+        Claim claim = submit("4000.00");
+        assertThat(claim.pullPendingEvents()).hasSize(1);
+        assertThat(claim.pullPendingEvents()).isEmpty();
+    }
+
     @Test
     void answeringWithoutAnOpenQuestionIsAConflict() {
         Claim claim = inReview();

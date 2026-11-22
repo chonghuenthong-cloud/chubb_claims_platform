@@ -15,6 +15,13 @@ spring:
   flyway:
     locations: classpath:db/migration
 
+  # Matches docker-compose.yml. Strings on the wire; events are JSON text (see events/ClaimEvent).
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      # A consumer group that starts later (or is reset) reads from the beginning, so no event is skipped
+      auto-offset-reset: earliest
+
   jpa:
     # Flyway owns the schema; Hibernate only checks that entities match it
     hibernate:

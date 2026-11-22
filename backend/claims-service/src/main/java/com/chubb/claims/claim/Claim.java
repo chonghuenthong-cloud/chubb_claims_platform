@@ -89,6 +89,10 @@ public class Claim {
     @OrderBy("requestedAt ASC")
     private List<InformationRequest> informationRequests = new ArrayList<>();
 
+    /** Events recorded by the actions below; ClaimService saves them to the outbox in the same transaction. */
+    @Transient
+    private final List<PendingClaimEvent> pendingEvents = new ArrayList<>();
+
     /** Required by JPA. */
     protected Claim() {
     }
@@ -110,20 +114,47 @@ public class Claim {
         claim.reserveAmount = estimatedLoss.min(policy.getCoverageLimit());
         claim.status = ClaimStatus.SUBMITTED;
         claim.history.add(new ClaimStatusHistory(claim, null, ClaimStatus.SUBMITTED, claimant, null));
+        claim.record(ClaimEventType.CLAIM_SUBMITTED, claimant, null, null, BigDecimal.ZERO);
         return claim;
     }
 
     /**
-     * Moves the claim to {@code target} and records who did it.
+     * Moves the claim to {@code target} and records who did it in the history.
+     * Package-private: outside code goes through the actions below, which also record an event.
      *
      * @throws InvalidStatusTransitionException if the lifecycle does not allow the move
      */
-    public void changeStatus(ClaimStatus target, AppUser changedBy, String note) {
+    void changeStatus(ClaimStatus target, AppUser changedBy, String note) {
         if (!status.canTransitionTo(target)) {
             throw new InvalidStatusTransitionException(status, target);
         }
         history.add(new ClaimStatusHistory(this, status, target, changedBy, note));
         status = target;
+    }
+
+    /**
+     * A status change plus its side effects (assigning, saving amounts...), recorded as one
+     * CLAIM_STATUS_CHANGED event once the effects are applied, so the event carries the final reserve.
+     */
+    private void transition(ClaimStatus target, AppUser actor, String note, Runnable effects) {
+        ClaimStatus from = status;
+        BigDecimal reserveBefore = reserveAmount;
+        changeStatus(target, actor, note);
+        effects.run();
+        record(ClaimEventType.CLAIM_STATUS_CHANGED, actor, from, note, reserveBefore);
+    }
+
+    /** Records an event describing the claim as it is now. */
+    private void record(ClaimEventType type, AppUser actor, ClaimStatus from, String note, BigDecimal reserveBefore) {
+        pendingEvents.add(new PendingClaimEvent(UUID.randomUUID(), type, Instant.now(), actor,
+                from, status, note, reserveBefore, reserveAmount));
+    }
+
+    /** Hands over the recorded events and clears them, so each is saved to the outbox exactly once. */
+    public List<PendingClaimEvent> pullPendingEvents() {
+        List<PendingClaimEvent> events = List.copyOf(pendingEvents);
+        pendingEvents.clear();
+        return events;
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -137,8 +168,7 @@ public class Claim {
             throw new InvalidStatusTransitionException(
                     "Claim has already been picked up by " + assignedOfficer.getFullName());
         }
-        changeStatus(ClaimStatus.UNDER_REVIEW, officer, null);
-        assignedOfficer = officer;
+        transition(ClaimStatus.UNDER_REVIEW, officer, null, () -> assignedOfficer = officer);
     }
 
     /** The assigned officer updates the expected liability while assessing (before a decision). */
@@ -148,14 +178,16 @@ public class Claim {
             throw new InvalidStatusTransitionException("The reserve can only be revised while the claim is being assessed");
         }
         requireWithinCoverageLimit(amount);
+        BigDecimal before = reserveAmount;
         reserveAmount = amount;
+        record(ClaimEventType.RESERVE_REVISED, officer, status, null, before);
     }
 
     /** The assigned officer asks the claimant a question; the claim waits in AWAITING_INFO. */
     public void requestInformation(AppUser officer, String question) {
         requireAssignedOfficer(officer);
-        changeStatus(ClaimStatus.AWAITING_INFO, officer, question);
-        informationRequests.add(new InformationRequest(this, officer, question));
+        transition(ClaimStatus.AWAITING_INFO, officer, question,
+                () -> informationRequests.add(new InformationRequest(this, officer, question)));
     }
 
     /** The claimant answers the open question; the claim goes back to UNDER_REVIEW. */
@@ -167,8 +199,7 @@ public class Claim {
         if (status != ClaimStatus.AWAITING_INFO || open == null) {
             throw new InvalidStatusTransitionException("There is no open question to answer on this claim");
         }
-        open.respond(response);
-        changeStatus(ClaimStatus.UNDER_REVIEW, claimant, null);
+        transition(ClaimStatus.UNDER_REVIEW, claimant, null, () -> open.respond(response));
     }
 
     /** The assigned officer approves an amount; the reserve becomes that amount (what we still expect to pay). */
@@ -178,24 +209,25 @@ public class Claim {
             throw new InvalidStatusTransitionException(status, ClaimStatus.APPROVED);
         }
         requireWithinCoverageLimit(amount);
-        changeStatus(ClaimStatus.APPROVED, officer, null);
-        approvedAmount = amount;
-        reserveAmount = amount;
+        transition(ClaimStatus.APPROVED, officer, null, () -> {
+            approvedAmount = amount;
+            reserveAmount = amount;
+        });
     }
 
     /** The assigned officer rejects the claim with a reason; nothing is left to pay, so the reserve is 0. */
     public void reject(AppUser officer, String reason) {
         requireAssignedOfficer(officer);
-        changeStatus(ClaimStatus.REJECTED, officer, reason);
-        rejectionReason = reason;
-        reserveAmount = BigDecimal.ZERO;
+        transition(ClaimStatus.REJECTED, officer, reason, () -> {
+            rejectionReason = reason;
+            reserveAmount = BigDecimal.ZERO;
+        });
     }
 
     /** The assigned officer confirms the approved amount was paid; nothing is left to pay, so the reserve is 0. */
     public void settle(AppUser officer) {
         requireAssignedOfficer(officer);
-        changeStatus(ClaimStatus.SETTLED, officer, null);
-        reserveAmount = BigDecimal.ZERO;
+        transition(ClaimStatus.SETTLED, officer, null, () -> reserveAmount = BigDecimal.ZERO);
     }
 
     private void requireWithinCoverageLimit(BigDecimal amount) {

@@ -6,6 +6,7 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
@@ -25,8 +26,13 @@ public abstract class IntegrationTestBase {
     @ServiceConnection
     protected static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17-alpine");
 
+    /** Same Kafka image as docker-compose.yml. The app's consumers and outbox relay connect to it. */
+    @ServiceConnection
+    protected static final KafkaContainer KAFKA = new KafkaContainer("apache/kafka:4.1.0");
+
     static {
         POSTGRES.start();
+        KAFKA.start();
     }
 
     // Seeded users (see db/seed/V100__seed_demo_data.sql)
