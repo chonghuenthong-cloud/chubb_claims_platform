@@ -1,0 +1,64 @@
+<h1>Report an incident</h1>
+
+<form [formGroup]="form" (ngSubmit)="submit()" class="form">
+
+  <mat-form-field appearance="outline">
+    <mat-label>Policy</mat-label>
+    <mat-select formControlName="policyId">
+      @for (p of policies(); track p.id) {
+        <mat-option [value]="p.id">
+          {{ p.policyNumber }} · {{ p.productType === 'MOTOR' ? 'Motor' : 'Property' }}
+          · {{ parseDate(p.startDate) | date: 'd MMM y' }} to {{ parseDate(p.endDate) | date: 'd MMM y' }}
+        </mat-option>
+      }
+    </mat-select>
+    @let policyErrors = form.controls.policyId.errors;
+    @if (policyErrors?.['required']) { <mat-error>Select a policy</mat-error> }
+    @if (policyErrors?.['server']) { <mat-error>{{ policyErrors?.['server'] }}</mat-error> }
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Incident date</mat-label>
+    <input matInput [matDatepicker]="picker" formControlName="incidentDate"
+           [min]="selectedPolicy() ? parseDate(selectedPolicy()!.startDate) : null"
+           [max]="maxDate(selectedPolicy())">
+    <mat-datepicker-toggle matIconSuffix [for]="picker" />
+    <mat-datepicker #picker />
+    @let dateErrors = form.controls.incidentDate.errors;
+    @if (dateErrors?.['required'] || dateErrors?.['matDatepickerParse']) { <mat-error>Enter the incident date</mat-error> }
+    @else if (dateErrors?.['future']) { <mat-error>Incident date cannot be in the future</mat-error> }
+    <!-- The date picker's own min/max errors mean the same as outsidePolicy once a policy is chosen -->
+    @else if (dateErrors?.['outsidePolicy'] || dateErrors?.['matDatepickerMin'] || dateErrors?.['matDatepickerMax']) {
+      <mat-error>Incident date must be within the policy period</mat-error>
+    }
+    @else if (dateErrors?.['server']) { <mat-error>{{ dateErrors?.['server'] }}</mat-error> }
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>What happened</mat-label>
+    <textarea matInput formControlName="incidentDescription" rows="5"></textarea>
+    <mat-hint align="end">{{ form.controls.incidentDescription.value.length }} / 2000</mat-hint>
+    @let descErrors = form.controls.incidentDescription.errors;
+    @if (descErrors?.['required']) { <mat-error>Describe what happened</mat-error> }
+    @else if (descErrors?.['minlength'] || descErrors?.['maxlength']) {
+      <mat-error>Description must be 10 to 2000 characters</mat-error>
+    }
+    @else if (descErrors?.['server']) { <mat-error>{{ descErrors?.['server'] }}</mat-error> }
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Estimated loss</mat-label>
+    @if (selectedPolicy(); as policy) { <span matTextPrefix>{{ policy.currency }}&nbsp;</span> }
+    <input matInput type="number" min="0" step="0.01" formControlName="estimatedLoss">
+    @let lossErrors = form.controls.estimatedLoss.errors;
+    @if (lossErrors?.['required']) { <mat-error>Enter the estimated loss</mat-error> }
+    @else if (lossErrors?.['min']) { <mat-error>Estimated loss must be greater than 0</mat-error> }
+    @else if (lossErrors?.['decimals']) { <mat-error>Estimated loss can have at most 2 decimal places</mat-error> }
+    @else if (lossErrors?.['server']) { <mat-error>{{ lossErrors?.['server'] }}</mat-error> }
+  </mat-form-field>
+
+  <div class="actions">
+    <a mat-button routerLink="/claimant">Cancel</a>
+    <button mat-flat-button type="submit" [disabled]="submitting()">Submit claim</button>
+  </div>
+</form>

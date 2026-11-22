@@ -7,18 +7,19 @@
   font-weight: 500;
 }
 
-// Pushes the navigation to the right edge of the toolbar
+// Pushes the picker to the right edge of the toolbar
 .spacer {
   flex: 1;
 }
 
-nav a {
-  color: var(--mat-sys-on-primary);
-}
-
-// Highlights the view currently shown
-nav a.active {
-  background: color-mix(in srgb, var(--mat-sys-on-primary) 18%, transparent);
+// Compact picker that reads well on the coloured toolbar
+.viewing-as {
+  width: 200px;
+  font-size: 14px;
+  background: var(--mat-sys-surface);
+  border-radius: 4px;
+  --mat-form-field-container-height: 40px;
+  --mat-form-field-container-vertical-padding: 8px;
 }
 
 .content {

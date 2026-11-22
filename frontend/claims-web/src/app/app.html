@@ -1,10 +1,23 @@
 <mat-toolbar class="top-bar">
   <span class="app-name">Claims Platform</span>
   <span class="spacer"></span>
-  <nav>
-    <a mat-button routerLink="/staff" routerLinkActive="active">Staff</a>
-    <a mat-button routerLink="/claimant" routerLinkActive="active">Claimant</a>
-  </nav>
+  @if (currentUser.user(); as user) {
+    <mat-form-field class="viewing-as" appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Viewing as</mat-label>
+      <mat-select [value]="user.id" (valueChange)="viewAs($event)">
+        <mat-optgroup label="Claimants">
+          @for (u of claimants(); track u.id) {
+            <mat-option [value]="u.id">{{ u.fullName }}</mat-option>
+          }
+        </mat-optgroup>
+        <mat-optgroup label="Staff">
+          @for (u of staff(); track u.id) {
+            <mat-option [value]="u.id">{{ u.fullName }}</mat-option>
+          }
+        </mat-optgroup>
+      </mat-select>
+    </mat-form-field>
+  }
 </mat-toolbar>
 
 <main class="content">
